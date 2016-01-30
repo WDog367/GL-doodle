@@ -1,0 +1,4 @@
+﻿  main.cpp
+c:\users\will\source\gl_doodle\gl-doodle\gl_test\gl_test\main.cpp(76): warning C4838: conversion from 'double' to 'GLfloat' requires a narrowing conversion
+c:\users\will\source\gl_doodle\gl-doodle\gl_test\gl_test\main.cpp(76): warning C4305: 'initializing': truncation from 'double' to 'GLfloat'
+  GL_Test.vcxproj -> C:\Users\Will\Source\GL_Doodle\GL-doodle\GL_Test\Debug\GL_Test.exe
