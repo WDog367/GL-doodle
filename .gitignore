@@ -26,3 +26,9 @@
 *.exe
 *.out
 *.app
+
+#other garbage
+*.sdf
+*.pdb
+*/Debug/*
+
