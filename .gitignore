@@ -31,4 +31,6 @@
 *.sdf
 *.pdb
 */Debug/*
+*\Debug\*
+Debug/
 
