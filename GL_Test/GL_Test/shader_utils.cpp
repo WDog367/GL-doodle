@@ -45,7 +45,7 @@ GLuint LoadShader(GLenum type, const char *fileName) {
 		log = new char[logLen];
 		glGetShaderInfoLog(shader, logLen, NULL, log);
 
-		cerr << fileName << ": " << log << endl;
+		cerr << fileName << ": compilation error: " << log << endl;
 		return 0;
 	}
 
@@ -77,7 +77,7 @@ GLuint LoadProgram(struct shaderInfo *si, int size) {//I saw an example of this 
 		log = new char[logLen];
 		glGetProgramInfoLog(program, logLen, NULL, log);
 
-		cerr << "Error in linking: " << log << endl;
+		cerr << "Link error: " << log << endl;
 		return 0;
 	}
 

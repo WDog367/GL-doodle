@@ -29,9 +29,6 @@
     <None Include="vs.glsl">
       <Filter>Resource Files</Filter>
     </None>
-    <None Include="fs2.fs">
-      <Filter>Resource Files</Filter>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shader_utils.h">

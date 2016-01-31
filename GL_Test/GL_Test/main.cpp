@@ -17,7 +17,8 @@
 using namespace std;//mmmmmmmmmmmmmmmmmmmmmm
 GLuint program;
 
-GLuint vbo;
+GLuint vbo_coord;
+GLuint vbo_colour;//will probably put these in an array, or some better storage system
 GLuint vao;//VAOs appear to be necessary in OpenGL 4.3, aww nuts
 
 
@@ -29,19 +30,29 @@ bool init() {
 	program = LoadProgram(shaders, 2);
 
 	//Setting up the buffers storing data for vertex attribs
-	vector <GLfloat> triangle_vertices = {
+	vector <GLfloat> vertices = {
 		0.0f,  0.8f,
 		-0.8f, -0.8f,
-		0.8f, -0.8f,
+		0.8f, -0.1f
 	};
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(triangle_vertices[0])*triangle_vertices.size(), triangle_vertices.data(), GL_STATIC_DRAW);
+	glGenBuffers(1, &vbo_coord);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.size(), vertices.data(), GL_STATIC_DRAW);
 
+	vector <GLfloat> colours = {
+		0.0f, 0.0f, 1.0f,
+		0.0f, 1.0f, 0.0f,
+		1.0f, 0.0f, 0.0f
+	};
+	glGenBuffers(1, &vbo_colour);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_colour);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(colours[0])*colours.size(), colours.data(), GL_STATIC_DRAW);
+		
 	//setting up the vertex attribute/arrays
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
 	GLint attrib_vcoord = getAttrib(program, "coord2d");
 	glVertexAttribPointer(
 		attrib_vcoord,	//attrib 'index'
@@ -52,6 +63,18 @@ bool init() {
 		0				//offset from buffer start
 		);
 	glEnableVertexAttribArray(attrib_vcoord);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_colour);
+	GLint attrib_vcolour = getAttrib(program, "colour");
+	glVertexAttribPointer(
+		attrib_vcolour,	//attrib 'index'
+		3,				//pieces of data per index
+		GL_FLOAT,		//type of data
+		GL_FALSE,		//whether to normalize
+		0,				//space b\w data
+		0				//offset from buffer start
+		);
+	glEnableVertexAttribArray(attrib_vcolour);
 
 	//setting the program to use
 	glUseProgram(program);
@@ -72,7 +95,8 @@ void display() {
 
 void free_res() {
 	glDeleteProgram(program);
-	glDeleteBuffers(1, &vbo);
+	glDeleteBuffers(1, &vbo_coord);
+	glDeleteBuffers(1, &vbo_colour);
 }
 
 int main(int argc, char *argv[]) {

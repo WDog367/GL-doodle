@@ -155,7 +155,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="fs.glsl" />
-    <None Include="fs2.fs" />
     <None Include="vs.glsl" />
   </ItemGroup>
   <ItemGroup>
