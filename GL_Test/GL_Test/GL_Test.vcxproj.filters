@@ -26,5 +26,8 @@
     <None Include="vs.glsl">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="fs2.fs">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
