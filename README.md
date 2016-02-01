@@ -1,7 +1,8 @@
 # GL-doodle
 Basic OpenGL testing and experimenting
 
-using:  freeglut: http://freeglut.sourceforge.net/
+using:  
+        freeglut: http://freeglut.sourceforge.net/
         glew: http://glew.sourceforge.net/
         glm: http://sourceforge.net/projects/ogl-math/
         
