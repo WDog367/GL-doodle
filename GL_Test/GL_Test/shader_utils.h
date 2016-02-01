@@ -11,5 +11,5 @@ struct shaderInfo {
 GLuint LoadShader(GLenum type, const char *fileName);
 GLuint LoadProgram(struct shaderInfo *si, int size);
 GLint getAttrib(GLuint program, char * name);
-
+GLint getUniform(GLuint program, char * name);
 #endif

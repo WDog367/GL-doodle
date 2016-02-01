@@ -98,3 +98,13 @@ GLint getAttrib(GLuint program, char * name) {
 	}
 	return attrib;
 }
+
+GLint getUniform(GLuint program, char * name) {
+	GLint uniform;
+	uniform = glGetUniformLocation(program, name);
+	if (uniform == -1) {
+		cerr << name << ": couldn't bind uniform\n";
+		return false;
+	}
+	return uniform;
+}
