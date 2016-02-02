@@ -28,6 +28,54 @@ GLuint vao;//VAOs appear to be necessary in OpenGL 4.3, aww nuts
 
 unsigned int timeLast, timeCurr;
 
+void loadObj(vector <float> &vertices, vector <unsigned int> &elements, char *fileName) {
+	ifstream file;
+	//istringstream sline;
+	string line;
+	string token;
+
+	file.open(fileName);
+	if (!fileName) {
+		cerr << "Error loading .obj: " << fileName << endl;
+		return;
+	}
+	//.obj format:
+	//v lines have vertices
+	//f lines have face (indices)
+	while (getline(file, line)) {
+
+		if (line.substr(0, 2) == "v ") {
+		//Loading a vertex
+			istringstream sline (line.substr(2));
+			//getting the three vertex coordinates on this line
+			for (int i = 0; i < 3; i++) {//there might be a fourth component, but it's not necessarily useful
+				sline >> token;
+				vertices.push_back(atof(token.c_str()));
+			}
+
+		}
+		else if (line.substr(0, 2) == "f ") {
+		//Loading a face
+			istringstream sline(line.substr(2));;
+
+			for (int i = 0; i < 3; i++) {
+				string temp;
+
+				sline >> token;
+				if (token.find("/") != -1) {
+					temp = token.substr(0, token.find("/"));
+				}
+				else {
+					temp = token;
+				}
+				elements.push_back(atoi(temp.c_str()));
+
+			}
+		}
+	}
+
+
+}
 
 bool init() {
 	//Setting up the render program (frag/vert shaders
@@ -37,33 +85,43 @@ bool init() {
 	program = LoadProgram(shaders, 2);
 
 	//Setting up the buffers storing data for vertex attribs
-	vector <GLfloat> vertices = {
+	vector <GLfloat> vertices;
+	vector <GLfloat> colours;
+	vector <GLuint> elements;
+	/*
+	vertices = {
 		0.0f,  0.8f, 0.0f,
 		-0.8f, -0.8f, 0.0f,
 		0.8f, -0.8f, 0.0f,
 		0.0f, 0.0f, -2.0f
 	};
 
-	glGenBuffers(1, &vbo_coord);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.size(), vertices.data(), GL_STATIC_DRAW);
-
-	vector <GLfloat> colours = {
-		0.0f, 0.0f, 1.0f,
-		0.0f, 1.0f, 0.0f,
-		1.0f, 0.0f, 0.0f,
-		1.0f, 1.0f, 0.0f
-	};
-	glGenBuffers(1, &vbo_colour);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_colour);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(colours[0])*colours.size(), colours.data(), GL_STATIC_DRAW);
-	
-	vector <GLuint> elements = {
+	elements = {
 		0, 1, 2,
 		0, 1, 3,
 		1, 2, 3,
 		2, 0, 3
 	};
+
+	*/
+	loadObj(vertices, elements, "object");
+
+	colours = {
+		0.0f, 0.0f, 1.0f,
+		0.0f, 1.0f, 0.0f,
+		1.0f, 0.0f, 0.0f,
+		1.0f, 1.0f, 0.0f
+	};
+	glGenBuffers(1, &vbo_coord);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.size(), vertices.data(), GL_STATIC_DRAW);
+
+
+	glGenBuffers(1, &vbo_colour);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_colour);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(colours[0])*colours.size(), colours.data(), GL_STATIC_DRAW);
+	
+
 	glGenBuffers(1, &ibo_elements);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements[0])*elements.size(), elements.data(), GL_STATIC_DRAW);

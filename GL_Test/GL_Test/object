@@ -1,0 +1,10 @@
+#Test Object. my weird pyramid thing
+v 0.0 0.8 0.0
+v -0.8 -0.8 0.0
+v 0.8 -0.8 0.0
+v 0.0 -0.8 -2.0
+
+f 0/2 1/2 2/2
+f 0 1 3
+f 1 2 3
+f 2 0 3
