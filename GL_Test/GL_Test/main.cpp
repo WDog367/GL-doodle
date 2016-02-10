@@ -34,6 +34,9 @@ void loadObj(vector <float> &vertices, vector <unsigned int> &elements, char *fi
 	string line;
 	string token;
 
+	int in_int;
+	float in_float;
+
 	file.open(fileName);
 	if (!fileName) {
 		cerr << "Error loading .obj: " << fileName << endl;
@@ -49,8 +52,8 @@ void loadObj(vector <float> &vertices, vector <unsigned int> &elements, char *fi
 			istringstream sline (line.substr(2));
 			//getting the three vertex coordinates on this line
 			for (int i = 0; i < 3; i++) {//there might be a fourth component, but it's not necessarily useful
-				sline >> token;
-				vertices.push_back(atof(token.c_str()));
+				sline >> in_float;
+				vertices.push_back(in_float);
 			}
 
 		}
@@ -63,12 +66,12 @@ void loadObj(vector <float> &vertices, vector <unsigned int> &elements, char *fi
 
 				sline >> token;
 				if (token.find("/") != -1) {
-					temp = token.substr(0, token.find("/"));
+					in_int = atoi(token.substr(0, token.find("/")).c_str());
 				}
 				else {
-					temp = token;
+					in_int = atoi(token.c_str());
 				}
-				elements.push_back(atoi(temp.c_str()));
+				elements.push_back(in_int);
 
 			}
 		}
