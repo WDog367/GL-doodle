@@ -280,7 +280,7 @@ bool init() {
 
 	return true;
 }
-
+//recompile
 void idle() {
 	timeCurr = glutGet(GLUT_ELAPSED_TIME);
 

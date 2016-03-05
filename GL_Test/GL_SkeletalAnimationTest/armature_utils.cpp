@@ -9,187 +9,208 @@
 
 #include "math.h"
 #include "GL/glew.h"
-#include "GL/freeglut.h"//may want to start using "GL/glut.h" to wean off of freeglut exclusive stuff?
 #include "glm/glm.hpp"//includes most (if not all?) of GLM library
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
 #include "file_utils.h"
 
-void readBVH(joint *arm, std::ifstream &file, std::vector<float*> &channelMap, std::vector<std::vector<float>> &frames) {
+
+bool Armature::loadBVHFull(const char *fileName) {
+	if (!loadBVHArm(fileName)) return false;
+	if (!loadBVHAnim_quick(fileName)) return false;
+	return true;
+}
+
+//now non-recursive!
+bool Armature::loadBVHArm(const char *fileName) {
 	using namespace std;
+	
+	joint *curArm;
 	string line;
 	string token;
 	istringstream *stream;
-	
-	file >> token;
+	ifstream file;
 
-	if (token == "HIERARCHY") {
-		//the main one, starting the file
-		int frameNum;
-		
-		arm->Parent = NULL;
-
-		do file >> token; while (token != "ROOT");//reached the Root
-		getline(file, line, '{');
-
-		stream = new istringstream(line);
-
-		*stream >> token;
-		arm->name = token;
-		delete stream;
-
-		readBVH(arm, file, channelMap, frames);
-		
-		do file >> token; while (token != "MOTION");//reached the Motion
-		getline(file, line, ':'); //this line will say how many frames
-		file >> frameNum;
-
-
-		getline(file, line, ':'); //this line will say the length of a frame.
-		file >> token; //discarding for now
-		
-		frames.resize(frameNum);
-
-		for (int i = 0; i < frameNum; i++) {
-			do {
-				getline(file, line); // this line will be the base pose
-			} while (line.length() == 0);
-
-			stream = new istringstream(line);
-			while (*stream >> token) {
-				frames[i].push_back(stof(token));
-			}
-			delete stream;
-		}
-	}
-	else if (token == "OFFSET") {
-		int numChannels;
-
-		file >> arm->offset[0];
-		file >> arm->offset[1];
-		file >> arm->offset[2];
-
-		do file >> token; while (token != "CHANNELS");//reached the Root
-		file >> numChannels;
-
-		for (int i = 0; i < numChannels; i++) {
-			file >> token;
-			if (token == "Xposition") {
-				channelMap.push_back(&(arm->offset[0]));
-			}
-			else if (token == "Yposition") {
-				channelMap.push_back(&(arm->offset[1]));
-			}
-			else if (token == "Zposition") {
-				channelMap.push_back(&(arm->offset[2]));
-			}
-			else if (token == "Xrotation") {
-				channelMap.push_back(&(arm->rotation[0]));
-			}
-			else if (token == "Yrotation") {
-				channelMap.push_back(&(arm->rotation[1]));
-			}
-			else if (token == "Zrotation") {
-				channelMap.push_back(&(arm->rotation[2]));
-			}
-		}
-
-		while (token != "}"){
-			file >> token;
-			if (token == "JOINT") {
-				joint *child;
-								
-				getline(file, line, '{');
-
-				stream = new istringstream(line);
-				*stream >> token;
-				delete stream;
-
-				child = new joint;
-				arm->Child.push_back(child);
-				child->Parent = arm;
-				child->name = token;
-				
-				readBVH(child, file, channelMap, frames);
-			}
-			else if (token == "End") {
-				getline(file, line, '}');
-				//the "End Site" contains the length of the last bone
-				//but I don't think I have a use for that data, so
-				//just skipping over it
-			}
-		}
-	}
-}
-
-void loadBVH(Arm &arm, const char *fileName) {
-	std::ifstream file;
+	vector <string> channelMapType;
+	vector <int> channelMapIndex;
 
 	file.open(fileName);
 	if (!file) {
 		std::cerr << "Error loading file: " << fileName << std::endl;
-		return;
+		return false;
 	}
 
-	arm.root = new joint;
+	//resetting the armature, just in case, to get ready for loading
+	offset.resize(0);
+	rotation.resize(0);
+	channelMap.resize(0);
+	size = 0;
 
-	readBVH(arm.root, file, arm.channelMap, arm.frames);
+	//should nuke the joints here as well
+	root = new joint;
+	root->Parent = NULL;
 
-	//putting the skeleton in it's base pose
-	for (int i = 0; i < arm.channelMap.size(); i++) {
-		*(arm.channelMap[i]) = arm.frames[0][i];
-	}
-}
-
-void drawJoint(joint *root, const glm::mat4 &objMat) {
-	glm::mat4 jointMat;
-
-	glm::vec3 offset = glm::vec3(root->offset[0], root->offset[1], root->offset[2]);
-	glm::vec3 rotation = glm::vec3(root->rotation[0], root->rotation[1], root->rotation[2]);
-
-	jointMat = objMat*glm::translate(offset)*
-		glm::rotate(rotation.x, glm::vec3(1, 0, 0))*
-		glm::rotate(rotation.y, glm::vec3(0, 1, 0))*
-		glm::rotate(rotation.z, glm::vec3(0, 0, 1));
-
-	for (int i = 0; i < root->Child.size(); i++) {
-		drawJoint(root->Child[i], jointMat);
-	}
-
-	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-	glDrawElements(GL_TRIANGLES, size / sizeof(GLuint), GL_UNSIGNED_INT, NULL);
-
-}
-
-void vectorize(joint *root, const glm::mat4 &mat,  std::vector<GLfloat> &vect) {
-	glm::mat4 jointMat;
-
-	glm::vec3 offset = glm::vec3(root->offset[0], root->offset[1], root->offset[2]);
-	glm::vec3 rotation = glm::vec3(root->rotation[0], root->rotation[1], root->rotation[2]);
-
-	glm::vec4 loc;
-
-	glm::mat4 x = glm::rotate(rotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0));
-	glm::mat4 y = glm::rotate(rotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0));
-	glm::mat4 z = glm::rotate(rotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1));
-
-	//I'm reasonably sure that  prev*offset*z*y*x is the right order
-	jointMat = mat*glm::translate(offset)*z*y*x;
+//	readBVH(root, offset, rotation, channelMap, file);//helper fcn to do it recursively, may change
 	
-	loc = (jointMat*glm::vec4(0, 0, 0, 1));
-
-	vect.push_back(loc.x);
-	vect.push_back(loc.y);
-	vect.push_back(loc.z);
-	vect.push_back(loc.w);
-
-	for (int i = 0; i < root->Child.size(); i++) {
-		vectorize(root->Child[i], jointMat, vect);
+	do { file >> token; } while (token != "HIERARCHY" && !file.fail());//reaching the start of the hierarchy
+	if (file.fail()) {
+		cerr << "Error reading file: " << fileName << endl;
 	}
+	
+	//reading loop;
+	while (!file.fail()) {
+		file >> token;
+
+		cout << token << endl;
+		if (token == "ROOT" || token == "JOINT") {
+		//Adding a new bone to the hierarchy
+			if (token == "ROOT") {
+				//parent already set
+				curArm = root;
+
+			}
+			else {
+				joint *newArm = new joint;
+				curArm->Child.push_back(newArm);
+				newArm->Parent = curArm;
+				curArm = newArm;
+			}
+			file >> curArm->name;
+			curArm->index = size;
+			size++;
+
+			//if these weren't vectors, wouldn't have to bother with this
+			//adding more entries to each of these
+			offset.resize(offset.size() + 3);
+			rotation.resize(rotation.size() + 3);
+			matrix.resize(matrix.size() + 1);
+			parent.resize(parent.size() + 1);
+
+			if (curArm->Parent != NULL) {
+				parent[curArm->index] = curArm->Parent->index;
+			}
+			else {
+				parent[curArm->index] = -1;
+			}
+
+			getline(file, line, '{');//moving the file just past the next open brace
+
+		}
+		else if (token == "OFFSET") {
+			file >> offset[curArm->index * 3];
+			file >> offset[curArm->index * 3 + 1];
+			file >> offset[curArm->index * 3 + 2];
+		}
+		else if (token == "CHANNELS") {
+			int numChannel;
+			file >> numChannel;
+			for (int i = 0; i < numChannel; i++) {
+				file >> token;
+				channelMapType.push_back(token);
+				channelMapIndex.push_back(curArm->index);
+				//these won't work, pointers to vector elements are bad
+				//they'll be fine if I change to array implementation, but for now
+				/*
+				if (token == "Xposition") {
+					this->channelMap.push_back(&(offset[curArm->index * 3 + 0])); // (offset.data() + 0 + curSize)
+				}
+				else if (token == "Yposition") {
+					this->channelMap.push_back(&(offset[curArm->index * 3 + 1]));
+				}
+				else if (token == "Zposition") {
+					this->channelMap.push_back(&(offset[curArm->index * 3 + 2]));
+				}
+				else if (token == "Xrotation") {
+					this->channelMap.push_back(&(rotation[curArm->index * 3 + 0]));
+				}
+				else if (token == "Yrotation") {
+					this->channelMap.push_back(&(rotation[curArm->index * 3 + 1]));
+				}
+				else if (token == "Zrotation") {
+					this->channelMap.push_back(&(rotation[curArm->index * 3 + 2]));
+				}
+				*/
+			}
+		}
+		else if (token == "End") {
+		//not too interested in the information in the "End Site" branch
+			getline(file, line, '{');
+			getline(file, line, '}');
+			//skipping over whatever is in here; using getline because I don't want to write a subprogram
+		}
+		else if (token == "}") {
+			if (curArm->Parent == NULL) {
+				break;
+			}
+			curArm = curArm->Parent;
+		}
+	}
+	
+	file.close();
+
+	//setting up the channel map; this should be done in the main part, if array implemetation instead of vector
+	channelMap.resize(channelMapType.size());
+	for (int i = 0; i < channelMap.size(); i++) {
+		if (channelMapType[i] == "Xposition") {
+			this->channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 0])); // (offset.data() + 0 + curSize)
+		}
+		else if (channelMapType[i] == "Yposition") {
+			this->channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 1]));
+		}
+		else if (channelMapType[i] == "Zposition") {
+			this->channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 2]));
+		}
+		else if (channelMapType[i] == "Xrotation") {
+			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 0]));
+		}
+		else if (channelMapType[i] == "Yrotation") {
+			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 1]));
+		}
+		else if (channelMapType[i] == "Zrotation") {
+			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 2]));
+		}
+	}
+	cout << "size: " << size << ", predicted: " << offset.size() / 3 << endl;
+	//size = offset.size() / 3;
+	return true;
 }
 
-void drawArm(Arm& arm, const glm::mat4 &mvp) {
+bool Armature::loadBVHAnim_quick(const char *fileName) {
+	//assumes the skeleton will be the exact same, and thus the channel map too
+	std::ifstream file;
+	std::string token;
+	std::string line;
+
+	int frameNum;
+
+	file.open(fileName);
+	if (!file) {
+		std::cerr << "Error loading file: " << fileName << std::endl;
+		return false;
+	}
+
+	do { file >> token; } while (token != "MOTION");//reached the Motion
+	getline(file, line, ':'); //this line will say how many frames
+	file >> frameNum;
+
+	getline(file, line, ':'); //this line will say the length of a frame.
+	file >> token; //discarding for now
+
+	frames.resize(frameNum);
+
+	for (int i = 0; i < frameNum; i++) {
+		if (frames[i].size() != channelMap.size()) { frames[i].resize(channelMap.size()); }//just to be safe
+		for (int j = 0; j < channelMap.size(); j++){
+			file >> frames[i][j];
+		}
+	}
+
+	file.close();
+	return true;
+}
+
+void Armature::draw(const glm::mat4 &mvp) {
 	using namespace std;
 	
 	GLuint vao;
@@ -204,10 +225,18 @@ void drawArm(Arm& arm, const glm::mat4 &mvp) {
 
 	loadObj(vertices, elements, "object");
 
-
 	std::vector<GLfloat> skeleton;
 
-	vectorize(arm.root, glm::mat4(1.0f), skeleton);
+	setMatrices();
+	for (int i = 0; i < size; i++) {
+		glm::vec4 loc = glm::vec4(0, 0, 0, 1);
+
+		loc = matrix[i] * loc;
+		skeleton.push_back(loc.x);
+		skeleton.push_back(loc.y);
+		skeleton.push_back(loc.z);
+		skeleton.push_back(loc.w);
+	}
 
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
@@ -242,41 +271,88 @@ void drawArm(Arm& arm, const glm::mat4 &mvp) {
 
 	glDeleteBuffers(1, &vbo);
 	glDeleteVertexArrays(1, &vao);
+	glDeleteProgram(program);
 
 }
 
-void printArm(joint *arm, int level) {
+void Armature::setMatrices() {
+	glm::vec3 coffset;
+	glm::vec3 crotation;
+	
+	//this requires that they are ordered such that i > parent[i] for all bones
+	for (int i = 0; i < size; i++) {
+		coffset = glm::vec3(offset[i * 3], offset[i * 3 + 1], offset[i * 3 + 2]);
+		crotation = glm::vec3(rotation[i * 3], rotation[i * 3 + 1], rotation[i * 3 + 2]);
+
+		//first the rotation part;
+		matrix[i] = glm::translate(coffset) *
+			glm::rotate(crotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1))*
+			glm::rotate(crotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0))*
+			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0));
+		//then multiply by it's parent
+		if (parent[i] != -1) {
+			matrix[i] = matrix[parent[i]] * matrix[i];
+		}
+	}
+
+	//recursive version
+	//setMatrices(root);
+}
+void Armature::setMatrices(Armature::joint *arm) {
+	glm::vec3 coffset;
+	glm::vec3 crotation;
+
+	coffset = glm::vec3(offset[arm->index * 3], offset[arm->index * 3 + 1], offset[arm->index * 3 + 2]);
+	crotation = glm::vec3(rotation[arm->index * 3], rotation[arm->index * 3 + 1], rotation[arm->index * 3 + 2]);
+
+	//first the rotation part;
+	matrix[arm->index] = glm::translate(coffset) *
+		glm::rotate(crotation.z, glm::vec3(0, 0, 1))*
+		glm::rotate(crotation.y, glm::vec3(0, 1, 0))*
+		glm::rotate(crotation.x, glm::vec3(1, 0, 0));
+
+	if (arm->Parent != NULL) {
+		matrix[arm->index] = matrix[arm->Parent->index] * matrix[arm->index];
+	}
+
+	for (int i = 0; i < arm->Child.size(); i++) {
+		setMatrices(arm->Child[i]);
+	}
+
+}
+
+/*
+void printArm(Armature::joint *arm, int level) {
 	using namespace std;
 	for (int i = 0; i < level; i++) cout << "    ";
-	cout << "Bone: " << arm->name << " {" << endl;
+	cout << "Bone: " << arm->name << ", " << arm->index << " {" << endl;
+	for (int i = 0; i < level; i++) cout << "    ";
+	cout << arm->offset << endl;
 	for (int i = 0; i < level; i++) cout << "    ";
 	cout << "Offset: " << arm->offset[0] << ", " << arm->offset[1] << ", " << arm->offset[2] <<  endl;
 	for (int i = 0; i < level; i++) cout << "    ";
 
 	if(arm->Parent != NULL)
-		cout << "Parent: " << arm->Parent->name << endl;
+		cout << "Parent: " << arm->Parent->name << ", " << arm->Parent->index << endl;
 		
 	cout << endl;
 	for (int i = 0; i < arm->Child.size(); i++) {
 		printArm(arm->Child[i], level + 1);
 	}
 }
+*/
 
-void nukeJoint(joint *root) {
-	for (int i = 0; i < root->Child.size(); i++) {
-		nukeJoint(root->Child[i]);
+
+void Armature::print() {
+	using namespace std;
+
+	for (int i = 0; i < size; i++) {
+		cout << "Bone: " << i << " {" << endl;
+		cout << "Offset: " << offset[i*3] << ", " << offset[i*3 + 1] << ", " << offset[i * 3 + 2] << endl;
+		cout << (&(offset[i * 3])) << endl;
+		cout << "Parent: " << parent[i] << endl;
+
+		cout << endl;
+
 	}
-	delete root;
-
-}
-
-void nukeArm(Arm &arm) {
-	for (int i = 0; i < arm.frames.size(); i++) {
-		arm.frames[i].resize(0);
-	}
-	arm.frames.resize(0);
-
-	arm.channelMap.resize(0);
-
-	nukeJoint(arm.root);
 }

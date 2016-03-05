@@ -28,6 +28,7 @@ GLuint LoadShader(GLenum type, const char *fileName) {
 		}
 		source += line + "\n";
 	}
+	fsource.close();
 	csource = source.c_str();
 
 	//the three important gl-relavent lines for shaders

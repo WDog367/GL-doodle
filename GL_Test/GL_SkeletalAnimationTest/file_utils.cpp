@@ -58,5 +58,5 @@ void loadObj(vector<float> &vertices, vector<unsigned int> &elements, char *file
 		}
 	}
 
-
+	file.close();
 }

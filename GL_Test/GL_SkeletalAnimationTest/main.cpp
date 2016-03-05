@@ -5,11 +5,14 @@
 #include <vector>
 #include "math.h"
 #include "GL/glew.h"
-#include "GL/freeglut.h"//may want to start using "GL/glut.h" to wean off of freeglut exclusive stuff?
 #include "glm/glm.hpp"//includes most (if not all?) of GLM library
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+//#include "GL/freeglut.h"//gonna stop using GLUT
+#include "SDL.h"
+#include "SDL_keyboard.h"
+#include "SDL_keycode.h"
 ///skeletal stuff
 
 //custom headers
@@ -22,131 +25,136 @@
 //Stop using globals (hahaha)
 
 using namespace std;//mmmmmmmmmmmmmmmmmmmmmm
-GLuint program;
-
-GLuint vbo_coord;
-GLuint vbo_colour;//will probably put these in an array, or some better storage system
-GLuint ibo_elements;
-GLuint uniform_matrix;
-GLuint vao;//VAOs appear to be necessary in OpenGL 4.3, aww nuts
-
 GLfloat X = 0.0, Y = -20.0, Z = -50;
 std::string command = "";
 
 glm::mat4 mvp;
 int curFrame = 0;
 int curAnim = 0;
-struct Arm armature;
+Armature armature;
+int c1, c2;
+string fileName;
+int curGroup =2 , curFile = 1;
 
-string FUCKYOUCPP[] = { "02_01.bvh", "02_02.bvh" , "02_03.bvh" , "02_04.bvh" , "02_05.bvh" , "02_06.bvh" , "02_07.bvh" , "02_08.bvh","02_09.bvh" };
+
+//const int maxfile = 124;
+bool repeat = false;
+
 unsigned int timeLast, timeCurr;
 
+char * ntos(int num) {
+	int size = 0;
+	int digit = 1;
+	char *result;
+
+	while (num / digit > 0) {
+		size++;
+		digit = digit * 10;
+	}
+
+
+	if (size == 0) {
+		result = new char[2];
+		result[0] = '0'; result[1] = '\0';
+	}
+	else {
+
+		result = new char[size + 1];
+
+		for (int i = 0; i < size; i++) {
+			num = num % digit;
+			digit = digit / 10;
+			result[i] = (num / digit) + '0';
+		}
+
+		result[size] = '\0';
+	}
+
+	return result;
+}
 bool init() {
-	//Setting up the render program (frag/vert shaders
-	struct shaderInfo shaders[] =	{ { GL_VERTEX_SHADER, "vs.glsl" },
-									{ GL_FRAGMENT_SHADER, "fs.glsl" } };
+	//fileName = new char[9];
+	fileName = "01_01.bvh";
 
-	program = LoadProgram(shaders, 2);
+	cout << "loading file" << endl;
+	armature.loadBVHArm("walk.bvh");
 
-	//Setting up the buffers storing data for vertex attribs
-	vector <GLfloat> vertices;
-	vector <GLfloat> colours;
-	vector <GLuint> elements;
-	/*
-	vertices = {
-		0.0f,  0.8f, 0.0f,
-		-0.8f, -0.8f, 0.0f,
-		0.8f, -0.8f, 0.0f,
-		0.0f, 0.0f, -2.0f
-	};
+	armature.print();
 
-	elements = {
-		0, 1, 2,
-		0, 1, 3,
-		1, 2, 3,
-		2, 0, 3
-	};
-
-	*/
-	loadObj(vertices, elements, "object");
-
-	colours = {
-		0.0f, 0.0f, 1.0f,
-		0.0f, 1.0f, 0.0f,
-		1.0f, 0.0f, 0.0f,
-		1.0f, 1.0f, 0.0f
-	};
-	glGenBuffers(1, &vbo_coord);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vertices.size(), vertices.data(), GL_STATIC_DRAW);
-
-
-	glGenBuffers(1, &vbo_colour);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_colour);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(colours[0])*colours.size(), colours.data(), GL_STATIC_DRAW);
-	
-
-	glGenBuffers(1, &ibo_elements);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements[0])*elements.size(), elements.data(), GL_STATIC_DRAW);
-
-	//setting up the vertex attribute/arrays
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
-	GLint attrib_vcoord = getAttrib(program, "coord");
-	glVertexAttribPointer(
-		attrib_vcoord,	//attrib 'index'
-		4,				//pieces of data per index
-		GL_FLOAT,		//type of data
-		GL_FALSE,		//whether to normalize
-		0,				//space b\w data
-		0				//offset from buffer start
-		);
-	glEnableVertexAttribArray(attrib_vcoord);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_colour);
-	GLint attrib_vcolour = getAttrib(program, "colour");
-	glVertexAttribPointer(
-		attrib_vcolour,	//attrib 'index'
-		3,				//pieces of data per index
-		GL_FLOAT,		//type of data
-		GL_FALSE,		//whether to normalize
-		0,				//space b\w data
-		0				//offset from buffer start
-		);
-	glEnableVertexAttribArray(attrib_vcolour);
-
-	uniform_matrix = getUniform(program, "matrix");
-
-	//setting the program to use
-	glUseProgram(program);
-	
-
-	loadBVH(armature, "walk.bvh");
-	printArm(armature.root, 0);
-
-	timeLast = glutGet(GLUT_ELAPSED_TIME);
+	timeLast = SDL_GetTicks();
 	return true;
+}
+
+
+std::string getFile(int &curGroup, int &curFile){
+	using namespace std;
+	string fileName = "";
+	ifstream testFile;
+	bool success = false;
+	int iterations = 0;
+
+	do {
+		fileName = "";
+
+		if (curGroup < 10) fileName.append("0");
+		fileName.append(ntos(curGroup));
+		fileName.append("/");
+		if (curGroup < 10) fileName.append("0");
+		fileName.append(ntos(curGroup));
+		fileName.append("_");
+		if (curFile < 10) fileName.append("0");
+		fileName.append(ntos(curFile));
+		fileName.append(".bvh");
+
+		testFile.open(fileName.c_str());
+		if (!testFile) {
+			if (iterations == 0) {
+				curFile++;
+				iterations++;
+			}
+			else if (iterations == 1) {
+				curFile = 1;
+				curGroup++;
+				iterations++;
+			}
+			else if (iterations == 2) {
+				curGroup = 1;
+				iterations++;
+			}else{	
+				success = true;
+				fileName = "";
+			}
+			testFile.close();
+		}
+		else {
+			testFile.close();
+			success = true;
+		}
+
+	} while (!success);
+		
+	return fileName;
 }
 
 void idle() {
 	//updating the matrics (i.e. animation) done in the idle function
 
+	//shouldn't use GLUT
 	timeLast = timeCurr;
-	timeCurr = glutGet(GLUT_ELAPSED_TIME);
+	timeCurr = SDL_GetTicks();
+	char* fileName;
 
 	if (timeLast - timeCurr > 500) {
 		curFrame++;
+		//passed the max
 		if (curFrame >= armature.frames.size()) {
 			curFrame = 0;
+			if (!repeat) {
+				curFile++;
 
-			curAnim++;
-			if (curAnim > 8) curAnim = 0;
-
-			nukeArm(armature);
-			loadBVH(armature, FUCKYOUCPP[curAnim].c_str());
+				armature.loadBVHAnim_quick((getFile(curGroup, curFile)).c_str());
+			}
+			cout << curGroup << "_" << curFile << endl;
 		}
 
 		//posing the skelly
@@ -167,11 +175,19 @@ void idle() {
 	glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
 
 	mvp = projection*view*model;//combination of model, view, projection matrices
+	//mvp = model;
+	
+	if (command.find("p") != -1) {
+		cout << "command string: " << command << endl;
+	}
+	if (command.find(" ") != -1) {
+		cout << "Select Group -- File" << endl;
+		cin >> curGroup;
+		cin >> curFile;
+		curFile--;
+		curFrame = 65535;
 
-	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
-
-	cout << "command string: " << command << endl;
-
+	}
 	if (command.find("a") != -1) {
 		X -= 50.0*(timeCurr - timeLast) / 1000;
 	}
@@ -190,47 +206,62 @@ void idle() {
 		Z += 50.0*(timeCurr - timeLast) / 1000;
 	}
 
-	glutPostRedisplay();
+	//glutPostRedisplay();
 }
 
-void display() {
+void display(SDL_Window *window) {
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-	
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);//not sure if 'glbindVertexArray' will include this guy
-	
-	glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, NULL);
 
-	drawArm(armature, mvp);
-	glFlush();
+	armature.draw(mvp);
+	//glFlush(); //??
+
+	SDL_GL_SwapWindow(window);
 }
 
 void free_res() {
-	glDeleteProgram(program);
-	glDeleteBuffers(1, &vbo_coord);
-	glDeleteBuffers(1, &vbo_colour);
 }
 
-void handleKeyDown(unsigned char key, int x, int y) {
+void handleKeyDown(const char key) {
 	if (command.find((char)key) == -1) {
 		command.push_back(key);
 		cout << "key down: " << key << " command string: " << command << endl;
 	}
 
 }
-void handleKeyUp(unsigned char key, int x, int y) {
+void handleKeyUp(const char key) {
 	command.erase(command.find(key), 1);
 	cout << "key up: " << key << " command string: " << command << endl;
 }
 
+void mainLoop(SDL_Window *window) {
+	while (true) {
+		SDL_Event ev;
+		while (SDL_PollEvent(&ev)) {
+			if (ev.type == SDL_QUIT) return;
+			if (ev.type == SDL_KEYDOWN) handleKeyDown(ev.key.keysym.sym);
+			if (ev.type == SDL_KEYUP) handleKeyUp(ev.key.keysym.sym);
+		}
+		idle();
+		display(window);
+	}
+}
+
 int main(int argc, char *argv[]) {
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGBA);
-	glutInitWindowSize(600, 480);
-	glutInitContextVersion(4, 3);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
-	glutCreateWindow("Test Display");
+	cout << ntos(123456789) << endl;
+
+	SDL_Window *window;
+
+	SDL_Init(SDL_INIT_VIDEO );
+	window = SDL_CreateWindow(
+		"Animation Test",						//title
+		SDL_WINDOWPOS_CENTERED,					//X-position
+		SDL_WINDOWPOS_CENTERED,					//Y-position
+		800,									//width
+		600,									//height
+		SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);//flags
+
+	SDL_GL_CreateContext(window);
 
 	glewExperimental = true;
 	if (glewInit()) {
@@ -240,14 +271,12 @@ int main(int argc, char *argv[]) {
 	cout << glGetString(GL_VERSION) << endl;
 
 	init();
-
+	//maybe put this in init
 	glEnable(GL_DEPTH_TEST);
-	glutDisplayFunc(display);
-	glutKeyboardFunc(handleKeyDown);
-	glutKeyboardUpFunc(handleKeyUp);
-	glutIdleFunc(idle);
+	
+	mainLoop(window);
 
-	glutMainLoop();
-	glutPostRedisplay();
 	free_res();
+
+	return 0;
 }
