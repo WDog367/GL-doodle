@@ -1,5 +1,5 @@
-#ifndef _SHADER_UTILS
-#define _SHADER_UTILS
+#ifndef WDB_SHADER_UTILS
+#define WDB_SHADER_UTILS
 
 #include "GL/glew.h"
 

@@ -22,11 +22,13 @@
     <ClCompile Include="armature_utils.cpp" />
     <ClCompile Include="file_utils.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mesh_utils.cpp" />
     <ClCompile Include="shader_utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="armature_utils.h" />
     <ClInclude Include="file_utils.h" />
+    <ClInclude Include="mesh_utils.h" />
     <ClInclude Include="shader_utils.h" />
   </ItemGroup>
   <ItemGroup>

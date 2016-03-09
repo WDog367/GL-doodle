@@ -19,13 +19,11 @@
 #include "file_utils.h"
 #include "shader_utils.h"
 #include "armature_utils.h"
-
-
+#include "mesh_utils.h"
 //TODO
 //Stop using globals (hahaha)
-
 using namespace std;//mmmmmmmmmmmmmmmmmmmmmm
-GLfloat X = 0.0, Y = -20.0, Z = -50;
+GLfloat X = 0.0, Y = -20.0, Z = -50, A = 0;
 std::string command = "";
 
 glm::mat4 mvp;
@@ -36,11 +34,42 @@ int c1, c2;
 string fileName;
 int curGroup =2 , curFile = 1;
 
+Skeletal_Mesh_simple *skelly;
+
+Mesh *testMesh;
+
+GLuint program;
 
 //const int maxfile = 124;
 bool repeat = false;
 
 unsigned int timeLast, timeCurr;
+
+bool init() {
+	//fileName = new char[9];
+	fileName = "01_01.bvh";
+
+	cout << "loading file" << endl;
+	armature.loadBVHArm("walk.bvh");
+
+	vector<GLfloat> vertices;
+	vector<GLuint> elements;
+
+	loadObj(vertices, elements, "object");
+
+	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs.glsl" },
+	{ GL_FRAGMENT_SHADER, "fs.glsl" } };
+
+	program = LoadProgram(shaders, 2);
+	//glUseProgram(program);
+
+	skelly = new Skeletal_Mesh_simple(&armature, program);
+	testMesh = new Mesh(vertices.data(), vertices.size(), elements.data(), elements.size(), program);
+
+	timeLast = SDL_GetTicks();
+	return true;
+}
+
 
 char * ntos(int num) {
 	int size = 0;
@@ -52,13 +81,11 @@ char * ntos(int num) {
 		digit = digit * 10;
 	}
 
-
 	if (size == 0) {
 		result = new char[2];
 		result[0] = '0'; result[1] = '\0';
 	}
 	else {
-
 		result = new char[size + 1];
 
 		for (int i = 0; i < size; i++) {
@@ -66,25 +93,11 @@ char * ntos(int num) {
 			digit = digit / 10;
 			result[i] = (num / digit) + '0';
 		}
-
 		result[size] = '\0';
 	}
 
 	return result;
 }
-bool init() {
-	//fileName = new char[9];
-	fileName = "01_01.bvh";
-
-	cout << "loading file" << endl;
-	armature.loadBVHArm("walk.bvh");
-
-	armature.print();
-
-	timeLast = SDL_GetTicks();
-	return true;
-}
-
 
 std::string getFile(int &curGroup, int &curFile){
 	using namespace std;
@@ -153,6 +166,7 @@ void idle() {
 				curFile++;
 
 				armature.loadBVHAnim_quick((getFile(curGroup, curFile)).c_str());
+
 			}
 			cout << curGroup << "_" << curFile << endl;
 		}
@@ -161,11 +175,12 @@ void idle() {
 		for (int i = 0; i < armature.channelMap.size(); i++) {
 			*(armature.channelMap[i]) = armature.frames[curFrame][i];
 		}
+		armature.setMatrices_simple();
 	}
 	//float angle = (timeCurr - timeLast) / 1000.0*(3.14159265358979323846) / 4;
 	
 	//model matrix: transforms local model coordinates into global world coordinates
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(X, Y, Z));
+	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(X, Y, Z))*glm::rotate(A, glm::vec3(0, 1, 0));
 	//	*glm::rotate(angle, glm::vec3(0.0, 1.0, 0.0));
 
 	//view matrix: transforms world coordinates into relative-the-camera view-space coordinates
@@ -205,7 +220,12 @@ void idle() {
 	else if (command.find("f") != -1) {
 		Z += 50.0*(timeCurr - timeLast) / 1000;
 	}
-
+	else if (command.find("z") != -1) {
+		A -= 3.14159*(timeCurr - timeLast) / 1000;
+	}
+	else if (command.find("c") != -1) {
+		A += 3.14159*(timeCurr - timeLast) / 1000;
+	}
 	//glutPostRedisplay();
 }
 
@@ -213,7 +233,9 @@ void display(SDL_Window *window) {
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
+	skelly->Draw(mvp);
 	armature.draw(mvp);
+	testMesh->Draw(mvp);
 	//glFlush(); //??
 
 	SDL_GL_SwapWindow(window);

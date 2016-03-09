@@ -25,7 +25,7 @@ bool Armature::loadBVHFull(const char *fileName) {
 //now non-recursive!
 bool Armature::loadBVHArm(const char *fileName) {
 	using namespace std;
-	
+
 	joint *curArm;
 	string line;
 	string token;
@@ -51,20 +51,19 @@ bool Armature::loadBVHArm(const char *fileName) {
 	root = new joint;
 	root->Parent = NULL;
 
-//	readBVH(root, offset, rotation, channelMap, file);//helper fcn to do it recursively, may change
-	
+	//	readBVH(root, offset, rotation, channelMap, file);//helper fcn to do it recursively, may change
+
 	do { file >> token; } while (token != "HIERARCHY" && !file.fail());//reaching the start of the hierarchy
 	if (file.fail()) {
 		cerr << "Error reading file: " << fileName << endl;
 	}
-	
+
 	//reading loop;
 	while (!file.fail()) {
 		file >> token;
 
-		cout << token << endl;
 		if (token == "ROOT" || token == "JOINT") {
-		//Adding a new bone to the hierarchy
+			//Adding a new bone to the hierarchy
 			if (token == "ROOT") {
 				//parent already set
 				curArm = root;
@@ -134,7 +133,7 @@ bool Armature::loadBVHArm(const char *fileName) {
 			}
 		}
 		else if (token == "End") {
-		//not too interested in the information in the "End Site" branch
+			//not too interested in the information in the "End Site" branch
 			getline(file, line, '{');
 			getline(file, line, '}');
 			//skipping over whatever is in here; using getline because I don't want to write a subprogram
@@ -146,7 +145,7 @@ bool Armature::loadBVHArm(const char *fileName) {
 			curArm = curArm->Parent;
 		}
 	}
-	
+
 	file.close();
 
 	//setting up the channel map; this should be done in the main part, if array implemetation instead of vector
@@ -169,6 +168,18 @@ bool Armature::loadBVHArm(const char *fileName) {
 		}
 		else if (channelMapType[i] == "Zrotation") {
 			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 2]));
+		}
+	}
+
+	loc.resize(size * 3);
+	for (int i = 0; i < size; i++){
+		for (int j = 0; j < 3; j++) {
+			if (parent[i] != -1) {
+				loc[i*3 + j] = offset[i*3 + j] + loc[parent[i]*3 + j];
+			}
+			else {
+				loc[i*3 + j] = offset[i * 3 + j];
+			}
 		}
 	}
 	cout << "size: " << size << ", predicted: " << offset.size() / 3 << endl;
@@ -223,11 +234,9 @@ void Armature::draw(const glm::mat4 &mvp) {
 	vector <GLfloat> colours;
 	vector <GLuint> elements;
 
-	loadObj(vertices, elements, "object");
-
 	std::vector<GLfloat> skeleton;
 
-	setMatrices();
+	setMatrices_simple();
 	for (int i = 0; i < size; i++) {
 		glm::vec4 loc = glm::vec4(0, 0, 0, 1);
 
@@ -275,7 +284,7 @@ void Armature::draw(const glm::mat4 &mvp) {
 
 }
 
-void Armature::setMatrices() {
+void Armature::setMatrices_simple() {
 	glm::vec3 coffset;
 	glm::vec3 crotation;
 	
@@ -289,6 +298,28 @@ void Armature::setMatrices() {
 			glm::rotate(crotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1))*
 			glm::rotate(crotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0))*
 			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0));
+		//then multiply by it's parent
+		if (parent[i] != -1) {
+			matrix[i] = matrix[parent[i]] * matrix[i];
+		}
+	}
+}
+
+void Armature::setMatrices() {
+	glm::vec3 cloc;
+	glm::vec3 crotation;
+
+	//this requires that they are ordered such that i > parent[i] for all bones
+	for (int i = 0; i < size; i++) {
+		cloc = glm::vec3(loc[i * 3], loc[i * 3 + 1], loc[i * 3 + 2]);
+		crotation = glm::vec3(rotation[i * 3], rotation[i * 3 + 1], rotation[i * 3 + 2]);
+
+		//first the rotation part;
+		matrix[i] = glm::translate(cloc) *
+			glm::rotate(crotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1))*
+			glm::rotate(crotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0))*
+			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0))*
+			glm::translate(-(cloc));
 		//then multiply by it's parent
 		if (parent[i] != -1) {
 			matrix[i] = matrix[parent[i]] * matrix[i];
@@ -355,4 +386,41 @@ void Armature::print() {
 		cout << endl;
 
 	}
+}
+
+Armature::joint * Armature::getJoint(std::string name) {
+	return getJoint(root, name);
+
+}
+
+Armature::joint * Armature::getJoint(joint* root, std::string name) {
+	joint* result = NULL;
+	if (root->name == name) {
+		result = root;
+	}
+	else {
+		for (int i = 0; i < root->Child.size() && result == NULL; i++) {
+			result = getJoint(root->Child[i], name);
+		}
+	}
+
+	return result;
+}
+
+Armature::joint * Armature::getJoint(int index) {
+	return getJoint(root, index);
+}
+
+Armature::joint * Armature::getJoint(joint* root, int index) {
+	joint* result = NULL;
+	if (root->index == index) {
+		result = root;
+	}
+	else {
+		for (int i = 0; i < root->Child.size() && result == NULL; i++) {
+			result = getJoint(root->Child[i], index);
+		}
+	}
+
+	return result;
 }

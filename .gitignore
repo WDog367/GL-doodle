@@ -33,4 +33,6 @@
 */Debug/*
 *\Debug\*
 Debug/
+*.bvh
+*.obj
 

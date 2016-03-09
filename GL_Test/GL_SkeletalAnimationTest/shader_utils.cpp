@@ -87,6 +87,8 @@ GLuint LoadProgram(struct shaderInfo *si, int size) {//I saw an example of this 
 		glDeleteShader(cs[i]);
 	}
 
+	delete[] cs;
+
 	return program;
 }
 

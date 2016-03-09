@@ -35,7 +35,7 @@ void loadObj(vector<float> &vertices, vector<unsigned int> &elements, char *file
 				sline >> in_float;
 				vertices.push_back(in_float);
 			}
-			vertices.push_back(1.0f);
+			//vertices.push_back(1.0f);
 			
 		}
 		else if (line.substr(0, 2) == "f ") {
@@ -52,7 +52,7 @@ void loadObj(vector<float> &vertices, vector<unsigned int> &elements, char *file
 				else {
 					in_int = atoi(token.c_str());
 				}
-				elements.push_back(in_int);
+				elements.push_back(in_int - 1);
 
 			}
 		}
