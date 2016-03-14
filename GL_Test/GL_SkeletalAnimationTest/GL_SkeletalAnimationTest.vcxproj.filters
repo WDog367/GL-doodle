@@ -55,5 +55,11 @@
     <None Include="vs.glsl">
       <Filter>Resource Files</Filter>
     </None>
+    <None Include="skelmesh_vs.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="skelmesh_fs.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

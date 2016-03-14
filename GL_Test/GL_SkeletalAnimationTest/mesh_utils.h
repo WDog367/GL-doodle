@@ -12,6 +12,7 @@
 #define MAXCHANNEL 155//should be around MAXBONES*3+3 plus a few more for kicks, why not?
 
 class Mesh {
+protected:
 	GLuint vao;
 	GLuint vbo_coord;
 	GLuint ibo_elements;
@@ -27,33 +28,21 @@ class Mesh {
 public:
 	Mesh();
 	Mesh(GLuint prog);
-	Mesh(float vertices[], float indices[], GLuint prog);
-	Mesh(char * fileName, GLuint prog);
+	Mesh(char * fileName, GLuint prog);//assumes .obj
 	Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program);
-	~Mesh();
+	virtual ~Mesh();
 
 	public:
 	virtual void Draw(const glm::mat4 &mvp);
 
-	void updateMesh(const GLfloat *vertcies, const GLuint *elements);
+	void updateMesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum);
 	void updateProgram(GLuint program);//also indices of vertex and element attributes as parameters?
 };
-
-
-//I don't think I actually have a use for this
-/*
-class Mutable_Mesh :Mesh {
-
-public:
-	std::vector<float> vertices;
-	std::vector<float> indices;
-};
-*/
-
 
 //these should probably be sub-classes of object
 //implement them with same subroutine names, so changing it later will be easy
 class Skeletal_Mesh_simple {
+public:
 	Armature *skeleton;
 	std::vector<Mesh*> mesh;
 
@@ -65,17 +54,15 @@ public:
 	void Draw(const glm::mat4 &mvp);
 };
 
-class Skeletal_Mesh {
-	GLuint vao;
-	GLuint program;
-	GLuint uniform_Matrix;
-
-	GLuint vbo_coord;
-	GLuint ibo_elements;
+class Skeletal_Mesh : Mesh{
+public:
 	GLuint vbo_vGroup;
+	GLfloat vbo_vWeight;
 
+	GLuint uniform_BoneTransform;
+
+	Armature* skeleton;
+	Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, Armature *skeleton, GLuint program);
 	virtual void Draw(const glm::mat4 &mvp);
-
-
 };
 #endif

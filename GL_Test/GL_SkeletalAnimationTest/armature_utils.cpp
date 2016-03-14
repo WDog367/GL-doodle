@@ -16,9 +16,93 @@
 #include "file_utils.h"
 
 
+Animation::Animation() {
+	curTime = 0;
+}
+
+Animation_Simple::Animation_Simple(const int mapSize, const std::string *channelMapType, const int *channelMapIndex, const std::vector<std::vector<GLfloat>> &frames, const int frameTime,
+	const int size, const GLfloat rot[], const GLfloat off[]) {
+	rotation.resize(size * 3);
+	offset.resize(size * 3);
+
+	for (int i = 0; i < size * 3; i++) {
+		rotation[i] = rot[i];
+		offset[i] = off[i];
+	}
+
+	channelMap.resize(mapSize);
+	for (int i = 0; i < channelMap.size(); i++) {
+		if (channelMapType[i] == "Xposition") {
+			channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 0])); // (offset.data() + 0 + curSize)
+		}
+		else if (channelMapType[i] == "Yposition") {
+			channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 1]));
+		}
+		else if (channelMapType[i] == "Zposition") {
+			channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 2]));
+		}
+		else if (channelMapType[i] == "Xrotation") {
+			channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 0]));
+		}
+		else if (channelMapType[i] == "Yrotation") {
+			channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 1]));
+		}
+		else if (channelMapType[i] == "Zrotation") {
+			channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 2]));
+		}
+	}
+
+	this->frames.resize(frames.size());
+	for (int i = 0; i < frames.size(); i++) {
+		for (int j = 0; j < channelMap.size(); j++) {
+			this->frames[i].push_back(frames[i][j]);
+		}
+	}
+
+	curFrame = 0;
+	nextFrame = 1;
+}
+
+void Animation_Simple::tick(int dt) {
+	curTime += dt;
+	if (curTime > frameLength) {
+		curFrame = nextFrame;
+		nextFrame++;
+		if (nextFrame > frames.size() - 1) {
+			nextFrame = 0;
+		}
+
+		//update the rotation and offset
+		for (int i = 0; i < channelMap.size(); i++) {
+			*(channelMap[i]) = frames[curFrame][i];
+		}
+	}
+}
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ARMATURE STUFF~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void Armature::tick(int dt) {
+	GLfloat *newRot;
+	GLfloat *newOff;
+
+	if (anim != NULL) {
+		anim->tick(dt);
+
+		newRot = anim->getRot();
+		newOff = anim->getOff();
+
+		for (int i = 0; i < rotation.size(); i++) {
+			rotation[i] = newRot[i];
+			offset[i] = newOff[i];
+		}
+	}
+
+	setMatrices_simple();
+}
+
 bool Armature::loadBVHFull(const char *fileName) {
 	if (!loadBVHArm(fileName)) return false;
-	if (!loadBVHAnim_quick(fileName)) return false;
+	if (!loadBVHAnim(fileName)) return false;
 	return true;
 }
 
@@ -44,7 +128,6 @@ bool Armature::loadBVHArm(const char *fileName) {
 	//resetting the armature, just in case, to get ready for loading
 	offset.resize(0);
 	rotation.resize(0);
-	channelMap.resize(0);
 	size = 0;
 
 	//should nuke the joints here as well
@@ -102,35 +185,14 @@ bool Armature::loadBVHArm(const char *fileName) {
 			file >> offset[curArm->index * 3 + 2];
 		}
 		else if (token == "CHANNELS") {
-			int numChannel;
-			file >> numChannel;
-			for (int i = 0; i < numChannel; i++) {
-				file >> token;
-				channelMapType.push_back(token);
-				channelMapIndex.push_back(curArm->index);
-				//these won't work, pointers to vector elements are bad
-				//they'll be fine if I change to array implementation, but for now
-				/*
-				if (token == "Xposition") {
-					this->channelMap.push_back(&(offset[curArm->index * 3 + 0])); // (offset.data() + 0 + curSize)
-				}
-				else if (token == "Yposition") {
-					this->channelMap.push_back(&(offset[curArm->index * 3 + 1]));
-				}
-				else if (token == "Zposition") {
-					this->channelMap.push_back(&(offset[curArm->index * 3 + 2]));
-				}
-				else if (token == "Xrotation") {
-					this->channelMap.push_back(&(rotation[curArm->index * 3 + 0]));
-				}
-				else if (token == "Yrotation") {
-					this->channelMap.push_back(&(rotation[curArm->index * 3 + 1]));
-				}
-				else if (token == "Zrotation") {
-					this->channelMap.push_back(&(rotation[curArm->index * 3 + 2]));
-				}
-				*/
-			}
+			getline(file, token); //basically disregard
+			//int numChannel;
+			//file >> numChannel;
+			//for (int i = 0; i < numChannel; i++) {
+			//	file >> token;
+			//	channelMapType.push_back(token);
+			//	channelMapIndex.push_back(curArm->index);
+			//}
 		}
 		else if (token == "End") {
 			//not too interested in the information in the "End Site" branch
@@ -148,29 +210,6 @@ bool Armature::loadBVHArm(const char *fileName) {
 
 	file.close();
 
-	//setting up the channel map; this should be done in the main part, if array implemetation instead of vector
-	channelMap.resize(channelMapType.size());
-	for (int i = 0; i < channelMap.size(); i++) {
-		if (channelMapType[i] == "Xposition") {
-			this->channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 0])); // (offset.data() + 0 + curSize)
-		}
-		else if (channelMapType[i] == "Yposition") {
-			this->channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 1]));
-		}
-		else if (channelMapType[i] == "Zposition") {
-			this->channelMap[i] = (&(offset[channelMapIndex[i] * 3 + 2]));
-		}
-		else if (channelMapType[i] == "Xrotation") {
-			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 0]));
-		}
-		else if (channelMapType[i] == "Yrotation") {
-			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 1]));
-		}
-		else if (channelMapType[i] == "Zrotation") {
-			this->channelMap[i] = (&(rotation[channelMapIndex[i] * 3 + 2]));
-		}
-	}
-
 	loc.resize(size * 3);
 	for (int i = 0; i < size; i++){
 		for (int j = 0; j < 3; j++) {
@@ -187,13 +226,23 @@ bool Armature::loadBVHArm(const char *fileName) {
 	return true;
 }
 
-bool Armature::loadBVHAnim_quick(const char *fileName) {
+bool Armature::loadBVHAnim(const char *fileName) {
 	//assumes the skeleton will be the exact same, and thus the channel map too
 	std::ifstream file;
 	std::string token;
 	std::string line;
 
+	std::vector <std::string> channelMapType;
+	std::vector <int> channelMapIndex;
+	std::vector<bool> mapTypeIsRotation;
+
+	std::vector<std::vector<GLfloat>> frames;
+
 	int frameNum;
+	float frameTime;
+
+	int index = -1;
+
 
 	file.open(fileName);
 	if (!file) {
@@ -201,23 +250,53 @@ bool Armature::loadBVHAnim_quick(const char *fileName) {
 		return false;
 	}
 
-	do { file >> token; } while (token != "MOTION");//reached the Motion
+
+	do { file >> token; } while (token != "HIERARCHY" && !file.fail());//reaching the start of the hierarchy
+	if (file.fail()) {
+		std::cerr << "Error reading file: " << fileName << std::endl;
+	}
+
+	//reading loop;
+	while (!file.fail()) {
+		file >> token;
+
+		if (token == "ROOT" || token == "JOINT") {
+			index++;
+		}
+		else if (token == "CHANNELS") {
+			int numChannel;
+			file >> numChannel;
+			for (int i = 0; i < numChannel; i++) {
+				file >> token;
+				channelMapType.push_back(token);
+				channelMapIndex.push_back(index);
+			}
+		}
+		else if (token == "MOTION") {
+			break;
+		}
+	}
+
+	//reached the Motion
 	getline(file, line, ':'); //this line will say how many frames
 	file >> frameNum;
 
 	getline(file, line, ':'); //this line will say the length of a frame.
-	file >> token; //discarding for now
+	file >> frameTime;
 
 	frames.resize(frameNum);
 
 	for (int i = 0; i < frameNum; i++) {
-		if (frames[i].size() != channelMap.size()) { frames[i].resize(channelMap.size()); }//just to be safe
-		for (int j = 0; j < channelMap.size(); j++){
+		if (frames[i].size() != channelMapType.size()) { frames[i].resize(channelMapType.size()); }//just to be safe
+		for (int j = 0; j < channelMapType.size(); j++){
 			file >> frames[i][j];
 		}
 	}
 
 	file.close();
+
+	anim = new Animation_Simple(channelMapType.size(), channelMapType.data(), channelMapIndex.data(), frames, frameTime*1000, this->size, this->rotation.data(), this->offset.data());
+
 	return true;
 }
 
@@ -271,7 +350,7 @@ void Armature::draw(const glm::mat4 &mvp) {
 		0				//offset from buffer start
 		);
 
-	uniform_matrix = getUniform(program, "matrix");
+	uniform_matrix = getUniform(program, "mvp");
 
 	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
 
@@ -303,19 +382,32 @@ void Armature::setMatrices_simple() {
 			matrix[i] = matrix[parent[i]] * matrix[i];
 		}
 	}
+
+	matrices.resize(matrix.size() * 16);//glm::mat4 is stored with floats
+	for (int i = 0; i < matrix.size(); i++) {
+		for (int j = 0; j < 4; j++)
+			for (int k = 0; k < 4; k++)
+				matrices[i * 16 + j * 4 + k] = matrix[i][j][k];
+	}
+	//Dangerous but probably faster
+	//for (int i = 0; i < matrix.size(); i++) {
+	//	memccpy(matrices.data() + i * 16, glm::value_ptr(matrix[i]), matrix[i][0][0] * 16);
+	//}
 }
 
 void Armature::setMatrices() {
 	glm::vec3 cloc;
-	glm::vec3 crotation;
+	glm::vec3 crotation;	
+	glm::vec3 coffset;
 
 	//this requires that they are ordered such that i > parent[i] for all bones
 	for (int i = 0; i < size; i++) {
 		cloc = glm::vec3(loc[i * 3], loc[i * 3 + 1], loc[i * 3 + 2]);
 		crotation = glm::vec3(rotation[i * 3], rotation[i * 3 + 1], rotation[i * 3 + 2]);
+		coffset = glm::vec3(offset[i * 3], offset[i * 3 + 1], offset[i * 3 + 2]);
 
 		//first the rotation part;
-		matrix[i] = glm::translate(cloc) *
+		matrix[i] = glm::translate(cloc)*
 			glm::rotate(crotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1))*
 			glm::rotate(crotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0))*
 			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0))*
@@ -326,53 +418,17 @@ void Armature::setMatrices() {
 		}
 	}
 
-	//recursive version
-	//setMatrices(root);
-}
-void Armature::setMatrices(Armature::joint *arm) {
-	glm::vec3 coffset;
-	glm::vec3 crotation;
-
-	coffset = glm::vec3(offset[arm->index * 3], offset[arm->index * 3 + 1], offset[arm->index * 3 + 2]);
-	crotation = glm::vec3(rotation[arm->index * 3], rotation[arm->index * 3 + 1], rotation[arm->index * 3 + 2]);
-
-	//first the rotation part;
-	matrix[arm->index] = glm::translate(coffset) *
-		glm::rotate(crotation.z, glm::vec3(0, 0, 1))*
-		glm::rotate(crotation.y, glm::vec3(0, 1, 0))*
-		glm::rotate(crotation.x, glm::vec3(1, 0, 0));
-
-	if (arm->Parent != NULL) {
-		matrix[arm->index] = matrix[arm->Parent->index] * matrix[arm->index];
+	matrices.resize(matrix.size() * 16);//glm::mat4 is stored with floats
+	for (int i = 0; i < matrix.size(); i++) {
+		for (int j = 0; j < 4; j++)
+			for (int k = 0; k < 4; k++)
+				matrices[i * 16 + j * 4 + k] = matrix[i][j][k];
 	}
-
-	for (int i = 0; i < arm->Child.size(); i++) {
-		setMatrices(arm->Child[i]);
-	}
-
+	//Dangerous but probably faster
+	//for (int i = 0; i < matrix.size(); i++) {
+	//	memccpy(matrices.data() + i * 16, glm::value_ptr(matrix[i]), matrix[i][0][0] * 16);
+	//}
 }
-
-/*
-void printArm(Armature::joint *arm, int level) {
-	using namespace std;
-	for (int i = 0; i < level; i++) cout << "    ";
-	cout << "Bone: " << arm->name << ", " << arm->index << " {" << endl;
-	for (int i = 0; i < level; i++) cout << "    ";
-	cout << arm->offset << endl;
-	for (int i = 0; i < level; i++) cout << "    ";
-	cout << "Offset: " << arm->offset[0] << ", " << arm->offset[1] << ", " << arm->offset[2] <<  endl;
-	for (int i = 0; i < level; i++) cout << "    ";
-
-	if(arm->Parent != NULL)
-		cout << "Parent: " << arm->Parent->name << ", " << arm->Parent->index << endl;
-		
-	cout << endl;
-	for (int i = 0; i < arm->Child.size(); i++) {
-		printArm(arm->Child[i], level + 1);
-	}
-}
-*/
-
 
 void Armature::print() {
 	using namespace std;

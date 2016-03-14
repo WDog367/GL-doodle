@@ -14,6 +14,21 @@
 
 
 ///Standard Mesh Stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Mesh::Mesh() {
+	glGenVertexArrays(1, &vao);
+	glGenBuffers(1, &ibo_elements);
+	glGenBuffers(1, &vbo_coord);
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
+
+	glBindVertexArray(0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
 //Initialized the mesh as a cube, clean simple, sweet
 Mesh::Mesh(GLuint program) {
 	GLuint attrib_vertices;
@@ -71,7 +86,11 @@ Mesh::Mesh(GLuint program) {
 	glVertexAttribPointer(attrib_vertices, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glEnableVertexAttribArray(attrib_vertices);
 
-	uniform_Matrix = getUniform(program, "matrix");
+	uniform_Matrix = getUniform(program, "mvp");
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 Mesh::Mesh(char *fileName, GLuint prog) {
 	using namespace std;
@@ -100,7 +119,11 @@ Mesh::Mesh(char *fileName, GLuint prog) {
 	glVertexAttribPointer(attrib_vertices, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glEnableVertexAttribArray(attrib_vertices);
 
-	uniform_Matrix = getUniform(program, "matrix");
+	uniform_Matrix = getUniform(program, "mvp");
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
 Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program) {
@@ -124,8 +147,11 @@ Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, 
 	glVertexAttribPointer(attrib_vertices, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glEnableVertexAttribArray(attrib_vertices);
 
-	uniform_Matrix = getUniform(program, "matrix");
+	uniform_Matrix = getUniform(program, "mvp");
 
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 Mesh::~Mesh() {
 	glDeleteBuffers(1, &vbo_coord);
@@ -142,8 +168,41 @@ void Mesh::Draw(const glm::mat4 &mvp) {
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
 
 	glDrawElements(GL_TRIANGLES, size / sizeof(GLuint), GL_UNSIGNED_INT, NULL);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
+void Mesh::updateMesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum) {
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);//could probably use GL_COPY_READ_BUFFER as target
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements[0])*eNum, elements, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vNum, vertices, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	//the attribute information stored in the vao should still be valid
+}
+
+void Mesh::updateProgram(GLuint program) {
+	GLuint attrib_vertices;
+	this->program = program;
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
+	attrib_vertices = getAttrib(program, "coord");
+	glVertexAttribPointer(attrib_vertices, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+	glEnableVertexAttribArray(attrib_vertices);
+
+	uniform_Matrix = getUniform(program, "mvp");
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+}
 //Simple Skeletal Mesh stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Skeletal_Mesh_simple::Skeletal_Mesh_simple(Armature* skeleton, GLuint program) {
@@ -211,4 +270,74 @@ void Skeletal_Mesh_simple::Draw(const glm::mat4 &mvp) {
 	for (int i = 0; i < mesh.size(); i++) {
 		mesh[i]->Draw(mvp*skeleton->matrix[i]);
 	}
+}
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~SKELETAL MESH~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, Armature *skeleton, GLuint program): Mesh(vertices, vNum, elements, eNum, program), skeleton(skeleton){
+	std::vector<GLuint> vGroup;
+	GLuint attribute_boneIndex;
+
+	int vertPerBone = vNum / 3 / skeleton->size;
+	int curBone = -1;
+	for (int i = 0; i < vNum / 3; i++) {
+		if (i%vertPerBone == 0) curBone++;
+
+		vGroup.push_back(curBone);
+	}
+
+	/*
+	for (int i = 0; i < vNum / 3; i++) {
+		int closestBone = 0;
+		float dist;
+		float minDist;
+		glm::vec3 tempVec = glm::vec3(vertices[i * 3], vertices[i * 3 + 1], vertices[i * 3 + 2]);
+		glm::vec3 locVec = glm::vec3(skeleton->loc[0], skeleton->loc[0 + 1], vertices[0 + 2]);
+		dist = abs(glm::length(tempVec - locVec));
+		minDist = dist;
+		for (int j = 1; j < skeleton->size; j++) {
+			locVec = glm::vec3(skeleton->loc[j*3 + 0], skeleton->loc[j * 3 + 1], vertices[j * 3 + 2]);
+			dist = abs(glm::length(tempVec - locVec));
+			if (dist < minDist) {
+				minDist = dist;
+				closestBone = j;
+			}
+		}
+
+		vGroup.push_back(closestBone);
+	}
+	*/
+
+	glGenBuffers(1, &vbo_vGroup);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_vGroup);
+	glBufferData(GL_ARRAY_BUFFER, vGroup.size()*sizeof(vGroup[0]), vGroup.data(), GL_DYNAMIC_DRAW);
+
+	glBindVertexArray(vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_vGroup);
+	attribute_boneIndex = getAttrib(program, "boneIndex");
+	glVertexAttribIPointer(attribute_boneIndex, 1, GL_UNSIGNED_INT, 0, NULL);
+	glEnableVertexAttribArray(attribute_boneIndex);
+
+	uniform_BoneTransform = getUniform(program, "boneMatrices");
+}
+
+void Skeletal_Mesh::Draw(const glm::mat4 &mvp){
+	glUseProgram(program);
+
+	skeleton->setMatrices();
+
+	glBindVertexArray(vao);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
+	glUniformMatrix4fv(uniform_Matrix, 1, GL_FALSE, glm::value_ptr(mvp));
+	glUniformMatrix4fv(uniform_BoneTransform, skeleton->size, GL_FALSE, skeleton->matrices.data());
+
+
+	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+
+	glDrawElements(GL_TRIANGLES, size / sizeof(GLuint), GL_UNSIGNED_INT, NULL);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }

@@ -35,35 +35,99 @@ string fileName;
 int curGroup =2 , curFile = 1;
 
 Skeletal_Mesh_simple *skelly;
+Skeletal_Mesh *skeletor;
 
 Mesh *testMesh;
 
 GLuint program;
+GLuint skel_program;
 
 //const int maxfile = 124;
 bool repeat = false;
 
 unsigned int timeLast, timeCurr;
 
+void genMesh(std::vector<GLfloat> &vertices, std::vector<GLuint> &elements, Armature * armature) {
+	vertices.resize(0);
+	elements.resize(0);
+
+	for (int i = 0; i < armature->size; i++) {
+		GLfloat baseVertices[] = {
+			// front
+			-1.0, -1.0,  1.0,
+			1.0, -1.0,  1.0,
+			1.0,  1.0,  1.0,
+			-1.0,  1.0,  1.0,
+			// back
+			-1.0, -1.0, -1.0,
+			1.0, -1.0, -1.0,
+			1.0,  1.0, -1.0,
+			-1.0,  1.0, -1.0,
+		};
+		GLuint baseElements[] = {
+			// front
+			0, 1, 2,
+			2, 3, 0,
+			// top
+			1, 5, 6,
+			6, 2, 1,
+			// back
+			7, 6, 5,
+			5, 4, 7,
+			// bottom
+			4, 0, 3,
+			3, 7, 4,
+			// left
+			4, 5, 1,
+			1, 0, 4,
+			// right
+			3, 2, 6,
+			6, 7, 3,
+		};
+
+		glm::mat4 transform = glm::translate(glm::vec3(armature->loc[i * 3], armature->loc[i * 3 + 1], armature->loc[i * 3 + 2]));
+
+		int size = sizeof(baseVertices) / sizeof(baseVertices[0]);
+
+		for (int i = 0; i < size; i += 3) {
+			glm::vec4 tempVec = transform*glm::vec4(baseVertices[i], baseVertices[i + 1], baseVertices[i + 2], 1);
+			vertices.push_back(tempVec.x);
+			vertices.push_back(tempVec.y);
+			vertices.push_back(tempVec.z);
+		}
+
+		for (int j = 0; j < sizeof(baseElements) / sizeof(baseElements[0]); j++) {
+			elements.push_back(baseElements[j] + i* size / 3);
+		}
+	}
+}
+
 bool init() {
 	//fileName = new char[9];
 	fileName = "01_01.bvh";
 
 	cout << "loading file" << endl;
-	armature.loadBVHArm("walk.bvh");
+	armature.loadBVHFull("walk.bvh");
 
 	vector<GLfloat> vertices;
 	vector<GLuint> elements;
 
-	loadObj(vertices, elements, "object");
-
+	//loadObj(vertices, elements, "object");
+	armature.setMatrices_simple();
+	genMesh(vertices, elements, &armature);
 	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs.glsl" },
 	{ GL_FRAGMENT_SHADER, "fs.glsl" } };
 
 	program = LoadProgram(shaders, 2);
+
+	struct shaderInfo skel_shaders[] = { { GL_VERTEX_SHADER, "skelmesh_vs.glsl" },
+	{ GL_FRAGMENT_SHADER, "skelmesh_fs.glsl" } };
+
+	skel_program = LoadProgram(skel_shaders, 2);
 	//glUseProgram(program);
 
 	skelly = new Skeletal_Mesh_simple(&armature, program);
+	skeletor = new Skeletal_Mesh(vertices.data(), vertices.size(), elements.data(), elements.size(), &armature, skel_program);
 	testMesh = new Mesh(vertices.data(), vertices.size(), elements.data(), elements.size(), program);
 
 	timeLast = SDL_GetTicks();
@@ -157,26 +221,7 @@ void idle() {
 	timeCurr = SDL_GetTicks();
 	char* fileName;
 
-	if (timeLast - timeCurr > 500) {
-		curFrame++;
-		//passed the max
-		if (curFrame >= armature.frames.size()) {
-			curFrame = 0;
-			if (!repeat) {
-				curFile++;
-
-				armature.loadBVHAnim_quick((getFile(curGroup, curFile)).c_str());
-
-			}
-			cout << curGroup << "_" << curFile << endl;
-		}
-
-		//posing the skelly
-		for (int i = 0; i < armature.channelMap.size(); i++) {
-			*(armature.channelMap[i]) = armature.frames[curFrame][i];
-		}
-		armature.setMatrices_simple();
-	}
+	armature.tick(timeCurr - timeLast);
 	//float angle = (timeCurr - timeLast) / 1000.0*(3.14159265358979323846) / 4;
 	
 	//model matrix: transforms local model coordinates into global world coordinates
@@ -233,9 +278,10 @@ void display(SDL_Window *window) {
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-	skelly->Draw(mvp);
+	//skelly->Draw(mvp);
+	skeletor->Draw(mvp);
 	armature.draw(mvp);
-	testMesh->Draw(mvp);
+	//testMesh->Draw(mvp);
 	//glFlush(); //??
 
 	SDL_GL_SwapWindow(window);
