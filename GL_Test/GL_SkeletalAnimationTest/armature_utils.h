@@ -8,11 +8,10 @@
 
 #define MAXBONES 50//might use arrays at some point; not today, suckkaah
 #define MAXCHANNEL 155//should be around MAXBONES*3+3 plus a few more for kicks, why not?
-
 class Interpolator {
 	//will be used in various thing so that I don't need different classes for different types of interpolation
 
-	virtual float Interpolate(float v1, float v2, int t) = 0;
+	virtual float getWeight(int t) = 0;
 };
 
 //function that returns what the
@@ -30,7 +29,23 @@ public:
 	virtual void tick(int dt) =0;
 	GLfloat* getRot() { return rotation.data(); }
 	GLfloat* getOff() { return offset.data(); }
+
 	//might update to include bone-specific accessors
+};
+
+
+class Sampler {
+	std::vector<float> time;
+	std::vector<glm::mat4> transform;
+	std::vector<Interpolator*> interpolator;//not 100% sure that it's necessary to have a separate one for each frame
+
+	int frameNum;
+};
+
+class Animation_Sampler :Animation {
+	std::vector<Sampler*> sampler;
+	std::vector<int> channelMap;//stores which bone index each sampler points to. could do by name, meh
+
 };
 
 //Simple keyframe animation
@@ -50,29 +65,9 @@ public:
 	int nextFrame;
 };
 
-//rotation is interpolated (linearly) between current frame and next frame
-class Animation_Interpolating {
-	struct Frame {
-		std::vector<GLfloat> pose;
-		int length;
-	};
-
-	int lastTime;
-
-	int curFrame;
-	int nextFrame;
-};
-
 class Armature {
 public://everything public, because I'm a hack
 	struct joint { 
-		//these are a very bad idea while everything is stored in vectors;
-		//the vector could get resized, and then these will be pointing to the wrong spot
-		//float* offset;//point to the spot in the offset array
-		//float* rotation;//ditto to the rotation array
-		//glm::mat4* matrix;
-
-		//this should be used more than the pointers; I may get rid of the pointers
 		int index;
 		std::string name;
 
@@ -82,13 +77,13 @@ public://everything public, because I'm a hack
 
 	//bone related things, stored in array for quick access, easy transfer to shaders; could do vector, potentially, but meh
 	std::vector<GLfloat> loc;//[MAXBONES][3];
-	//std::vector<GLfloat> base;
 	std::vector<GLfloat> offset;// [MAXBONES][3];
-	std::vector<GLfloat> rotation;// [MAXBONES][3];//stored in zyx euler?
-	std::vector<GLfloat> parent;// [MAXBONES][3];//stored in zyx euler?
-	std::vector<glm::mat4> matrix; //[MAXBONES]; //should swap this out for a quaternian in the future
+	std::vector<GLfloat> rotation;// [MAXBONES][3];//stored in zyx euler?//should swap this out for a quaternian in the future
 	
-	std::vector <GLfloat> matrices;//[MAXBONES][16]confusing, I know; but this is the data passable to openGL; the glm::mat4 stuff isn't
+	std::vector<GLfloat> parent;// [MAXBONES][3];
+	
+	std::vector<glm::mat4> invBasePose;
+	std::vector<glm::mat4> matrix; //[MAXBONES]; 
 
 	GLint size = 0;
 	joint * root;

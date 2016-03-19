@@ -15,10 +15,14 @@
 
 #include "file_utils.h"
 
-
 Animation::Animation() {
 	curTime = 0;
 }
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Neat Animation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Simple keyframe Animation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 Animation_Simple::Animation_Simple(const int mapSize, const std::string *channelMapType, const int *channelMapIndex, const std::vector<std::vector<GLfloat>> &frames, const int frameTime,
 	const int size, const GLfloat rot[], const GLfloat off[]) {
@@ -116,8 +120,9 @@ bool Armature::loadBVHArm(const char *fileName) {
 	istringstream *stream;
 	ifstream file;
 
-	vector <string> channelMapType;
-	vector <int> channelMapIndex;
+	std::vector <std::string> channelMapType;
+	std::vector <int> channelMapIndex;
+	std::vector<bool> mapTypeIsRotation;
 
 	file.open(fileName);
 	if (!file) {
@@ -185,14 +190,13 @@ bool Armature::loadBVHArm(const char *fileName) {
 			file >> offset[curArm->index * 3 + 2];
 		}
 		else if (token == "CHANNELS") {
-			getline(file, token); //basically disregard
-			//int numChannel;
-			//file >> numChannel;
-			//for (int i = 0; i < numChannel; i++) {
-			//	file >> token;
-			//	channelMapType.push_back(token);
-			//	channelMapIndex.push_back(curArm->index);
-			//}
+			int numChannel;
+			file >> numChannel;
+			for (int i = 0; i < numChannel; i++) {
+				file >> token;
+				channelMapType.push_back(token);
+				channelMapIndex.push_back(curArm->index);
+			}
 		}
 		else if (token == "End") {
 			//not too interested in the information in the "End Site" branch
@@ -208,8 +212,43 @@ bool Armature::loadBVHArm(const char *fileName) {
 		}
 	}
 
+	do { file >> token; } while (token != "MOTION" && !file.fail());//reaching the start of the hierarchy
+	if (file.fail()) {
+		std::cerr << "Error reading file: " << fileName << std::endl;
+	}
+	getline(file, line, ':');//discard these lines
+	getline(file, line);
+	getline(file, line);
+
+	//reading the binding pose
+	for (int i = 0; i < channelMapIndex.size(); i++) {
+		if (channelMapType[i] == "Xposition") {
+			file >> (offset[channelMapIndex[i] * 3 + 0]); // (offset.data() + 0 + curSize)
+		}
+		else if (channelMapType[i] == "Yposition") {
+			file >> (offset[channelMapIndex[i] * 3 + 1]);
+		}
+		else if (channelMapType[i] == "Zposition") {
+			file >> (offset[channelMapIndex[i] * 3 + 2]);
+		}
+		else if (channelMapType[i] == "Xrotation") {
+			file >> (rotation[channelMapIndex[i] * 3 + 0]);
+		}
+		else if (channelMapType[i] == "Yrotation") {
+			file >> (rotation[channelMapIndex[i] * 3 + 1]);
+		}
+		else if (channelMapType[i] == "Zrotation") {
+			file >> (rotation[channelMapIndex[i] * 3 + 2]);
+		}
+	}
 	file.close();
 
+	setMatrices_simple();
+	for (int i = 0; i < matrix.size(); i++) {
+		invBasePose.push_back(glm::inverse(matrix[i]));
+	}
+
+	//This is basically deprecated
 	loc.resize(size * 3);
 	for (int i = 0; i < size; i++){
 		for (int j = 0; j < 3; j++) {
@@ -221,8 +260,7 @@ bool Armature::loadBVHArm(const char *fileName) {
 			}
 		}
 	}
-	cout << "size: " << size << ", predicted: " << offset.size() / 3 << endl;
-	//size = offset.size() / 3;
+
 	return true;
 }
 
@@ -281,7 +319,7 @@ bool Armature::loadBVHAnim(const char *fileName) {
 	getline(file, line, ':'); //this line will say how many frames
 	file >> frameNum;
 
-	getline(file, line, ':'); //this line will say the length of a frame.
+	getline(file, line, ':'); //this line will say the length of each frame.
 	file >> frameTime;
 
 	frames.resize(frameNum);
@@ -377,22 +415,12 @@ void Armature::setMatrices_simple() {
 			glm::rotate(crotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1))*
 			glm::rotate(crotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0))*
 			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0));
+
 		//then multiply by it's parent
 		if (parent[i] != -1) {
 			matrix[i] = matrix[parent[i]] * matrix[i];
 		}
 	}
-
-	matrices.resize(matrix.size() * 16);//glm::mat4 is stored with floats
-	for (int i = 0; i < matrix.size(); i++) {
-		for (int j = 0; j < 4; j++)
-			for (int k = 0; k < 4; k++)
-				matrices[i * 16 + j * 4 + k] = matrix[i][j][k];
-	}
-	//Dangerous but probably faster
-	//for (int i = 0; i < matrix.size(); i++) {
-	//	memccpy(matrices.data() + i * 16, glm::value_ptr(matrix[i]), matrix[i][0][0] * 16);
-	//}
 }
 
 void Armature::setMatrices() {
@@ -407,27 +435,19 @@ void Armature::setMatrices() {
 		coffset = glm::vec3(offset[i * 3], offset[i * 3 + 1], offset[i * 3 + 2]);
 
 		//first the rotation part;
-		matrix[i] = glm::translate(cloc)*
+		matrix[i] = glm::translate(coffset)*
 			glm::rotate(crotation.z*(3.14159f) / 180.0f, glm::vec3(0, 0, 1))*
 			glm::rotate(crotation.y*(3.14159f) / 180.0f, glm::vec3(0, 1, 0))*
-			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0))*
-			glm::translate(-(cloc));
+			glm::rotate(crotation.x*(3.14159f) / 180.0f, glm::vec3(1, 0, 0));
 		//then multiply by it's parent
 		if (parent[i] != -1) {
 			matrix[i] = matrix[parent[i]] * matrix[i];
 		}
 	}
 
-	matrices.resize(matrix.size() * 16);//glm::mat4 is stored with floats
-	for (int i = 0; i < matrix.size(); i++) {
-		for (int j = 0; j < 4; j++)
-			for (int k = 0; k < 4; k++)
-				matrices[i * 16 + j * 4 + k] = matrix[i][j][k];
+	for (int i = 0; i < size; i++) {
+		matrix[i] = matrix[i] * invBasePose[i];
 	}
-	//Dangerous but probably faster
-	//for (int i = 0; i < matrix.size(); i++) {
-	//	memccpy(matrices.data() + i * 16, glm::value_ptr(matrix[i]), matrix[i][0][0] * 16);
-	//}
 }
 
 void Armature::print() {

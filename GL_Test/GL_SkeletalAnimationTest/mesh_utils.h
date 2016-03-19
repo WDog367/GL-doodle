@@ -56,8 +56,9 @@ public:
 
 class Skeletal_Mesh : Mesh{
 public:
-	GLuint vbo_vGroup;
-	GLfloat vbo_vWeight;
+	GLuint vbo_bIndex;
+	GLuint vbo_bWeight;
+	GLuint vbo_bNum;
 
 	GLuint uniform_BoneTransform;
 

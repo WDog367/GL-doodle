@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GL_Invaders", "GL_Invaders\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GL_SkeletalAnimationTest", "GL_SkeletalAnimationTest\GL_SkeletalAnimationTest.vcxproj", "{EF60CDC7-9C85-464B-BEAC-30FABB89B9AA}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "XML_readingtest", "XML_readingtest\XML_readingtest.vcxproj", "{A18C7591-0A16-49B5-870B-2DA61904549E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -41,6 +43,14 @@ Global
 		{EF60CDC7-9C85-464B-BEAC-30FABB89B9AA}.Release|x64.Build.0 = Release|x64
 		{EF60CDC7-9C85-464B-BEAC-30FABB89B9AA}.Release|x86.ActiveCfg = Release|Win32
 		{EF60CDC7-9C85-464B-BEAC-30FABB89B9AA}.Release|x86.Build.0 = Release|Win32
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Debug|x64.ActiveCfg = Debug|x64
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Debug|x64.Build.0 = Debug|x64
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Debug|x86.ActiveCfg = Debug|Win32
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Debug|x86.Build.0 = Debug|Win32
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Release|x64.ActiveCfg = Release|x64
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Release|x64.Build.0 = Release|x64
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Release|x86.ActiveCfg = Release|Win32
+		{A18C7591-0A16-49B5-870B-2DA61904549E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

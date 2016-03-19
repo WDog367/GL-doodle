@@ -85,8 +85,14 @@ void genMesh(std::vector<GLfloat> &vertices, std::vector<GLuint> &elements, Arma
 			6, 7, 3,
 		};
 
-		glm::mat4 transform = glm::translate(glm::vec3(armature->loc[i * 3], armature->loc[i * 3 + 1], armature->loc[i * 3 + 2]));
+		//glm::mat4 transform = glm::translate(glm::vec3(armature->loc[i * 3], armature->loc[i * 3 + 1], armature->loc[i * 3 + 2]));
+		glm::mat4 transform = armature->matrix[i];
 
+		glm::vec4 temp = glm::vec4(0, 0, 0, 1);
+
+		temp = transform*temp;
+		cout << temp.x << ", " << temp.y << ", " << temp.z << ", " << "; ";
+		cout << armature->loc[i*3 +0] << ", " << armature->loc[i * 3 + 1] << ", " << armature->loc[i * 3 +2] << ", " << endl;
 		int size = sizeof(baseVertices) / sizeof(baseVertices[0]);
 
 		for (int i = 0; i < size; i += 3) {
@@ -222,6 +228,7 @@ void idle() {
 	char* fileName;
 
 	armature.tick(timeCurr - timeLast);
+
 	//float angle = (timeCurr - timeLast) / 1000.0*(3.14159265358979323846) / 4;
 	
 	//model matrix: transforms local model coordinates into global world coordinates
@@ -280,7 +287,9 @@ void display(SDL_Window *window) {
 
 	//skelly->Draw(mvp);
 	skeletor->Draw(mvp);
-	armature.draw(mvp);
+	//glDisable(GL_DEPTH_TEST);
+	//armature.draw(mvp);
+	//glEnable(GL_DEPTH_TEST);
 	//testMesh->Draw(mvp);
 	//glFlush(); //??
 
@@ -316,7 +325,6 @@ void mainLoop(SDL_Window *window) {
 }
 
 int main(int argc, char *argv[]) {
-	cout << ntos(123456789) << endl;
 
 	SDL_Window *window;
 
@@ -347,4 +355,5 @@ int main(int argc, char *argv[]) {
 	free_res();
 
 	return 0;
+	
 }

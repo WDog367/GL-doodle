@@ -275,15 +275,26 @@ void Skeletal_Mesh_simple::Draw(const glm::mat4 &mvp) {
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~SKELETAL MESH~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, Armature *skeleton, GLuint program): Mesh(vertices, vNum, elements, eNum, program), skeleton(skeleton){
-	std::vector<GLuint> vGroup;
+	std::vector<GLuint> bIndex;
+	std::vector<GLfloat> bWeight;
+	std::vector<GLuint> bNum;
+
 	GLuint attribute_boneIndex;
+	GLuint attribute_boneWeight;
+	GLuint attribute_boneNum;
 
 	int vertPerBone = vNum / 3 / skeleton->size;
 	int curBone = -1;
+
+	bIndex.resize(vNum / 3 * 4);//Number of vertices *5
+	bWeight.resize(vNum / 3 * 4);
+	bNum.resize(vNum / 3);
 	for (int i = 0; i < vNum / 3; i++) {
 		if (i%vertPerBone == 0) curBone++;
 
-		vGroup.push_back(curBone);
+		bIndex[i * 4] = curBone;
+		bWeight[i * 4] = 1.0;
+		bNum[i] = 1;
 	}
 
 	/*
@@ -308,16 +319,34 @@ Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *el
 	}
 	*/
 
-	glGenBuffers(1, &vbo_vGroup);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_vGroup);
-	glBufferData(GL_ARRAY_BUFFER, vGroup.size()*sizeof(vGroup[0]), vGroup.data(), GL_DYNAMIC_DRAW);
+	glGenBuffers(1, &vbo_bIndex);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bIndex);
+	glBufferData(GL_ARRAY_BUFFER, bIndex.size()*sizeof(bIndex[0]), bIndex.data(), GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_bWeight);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bWeight);
+	glBufferData(GL_ARRAY_BUFFER, bWeight.size()*sizeof(bWeight[0]), bWeight.data(), GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_bNum);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bNum);
+	glBufferData(GL_ARRAY_BUFFER, bNum.size()*sizeof(bNum[0]), bNum.data(), GL_DYNAMIC_DRAW);
 
 	glBindVertexArray(vao);
 
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_vGroup);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bIndex);
 	attribute_boneIndex = getAttrib(program, "boneIndex");
-	glVertexAttribIPointer(attribute_boneIndex, 1, GL_UNSIGNED_INT, 0, NULL);
+	glVertexAttribIPointer(attribute_boneIndex, 4, GL_UNSIGNED_INT, 0, NULL);
 	glEnableVertexAttribArray(attribute_boneIndex);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bWeight);
+	attribute_boneWeight = getAttrib(program, "boneWeight");
+	glVertexAttribPointer(attribute_boneWeight, 4, GL_FLOAT, GL_FALSE, 0, NULL);
+	glEnableVertexAttribArray(attribute_boneWeight);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bNum);
+	attribute_boneNum = getAttrib(program, "boneNum");
+	glVertexAttribIPointer(attribute_boneNum, 1, GL_UNSIGNED_INT, 0, NULL);
+	glEnableVertexAttribArray(attribute_boneNum);
 
 	uniform_BoneTransform = getUniform(program, "boneMatrices");
 }
@@ -330,7 +359,7 @@ void Skeletal_Mesh::Draw(const glm::mat4 &mvp){
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
 	glUniformMatrix4fv(uniform_Matrix, 1, GL_FALSE, glm::value_ptr(mvp));
-	glUniformMatrix4fv(uniform_BoneTransform, skeleton->size, GL_FALSE, skeleton->matrices.data());
+	glUniformMatrix4fv(uniform_BoneTransform, skeleton->size, GL_FALSE, (GLfloat *)skeleton->matrix.data());
 
 
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
