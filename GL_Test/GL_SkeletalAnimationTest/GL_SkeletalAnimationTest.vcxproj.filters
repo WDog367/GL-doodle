@@ -30,6 +30,12 @@
     <ClCompile Include="mesh_utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tinyxml2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DAE_utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shader_utils.h">
@@ -42,6 +48,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="mesh_utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DAE_utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -59,6 +68,18 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="skelmesh_fs.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="fs_debug.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="skelmesh_fs_debug.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="skelmesh_vs_debug.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="vs_debug.glsl">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

@@ -20,23 +20,30 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="armature_utils.cpp" />
+    <ClCompile Include="DAE_utils.cpp" />
     <ClCompile Include="file_utils.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mesh_utils.cpp" />
     <ClCompile Include="shader_utils.cpp" />
+    <ClCompile Include="tinyxml2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="armature_utils.h" />
+    <ClInclude Include="DAE_utils.h" />
     <ClInclude Include="file_utils.h" />
     <ClInclude Include="mesh_utils.h" />
     <ClInclude Include="shader_utils.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="fs.glsl" />
+    <None Include="fs_debug.glsl" />
     <None Include="object" />
     <None Include="skelmesh_fs.glsl" />
+    <None Include="skelmesh_fs_debug.glsl" />
     <None Include="skelmesh_vs.glsl" />
+    <None Include="skelmesh_vs_debug.glsl" />
     <None Include="vs.glsl" />
+    <None Include="vs_debug.glsl" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{EF60CDC7-9C85-464B-BEAC-30FABB89B9AA}</ProjectGuid>
@@ -108,13 +115,13 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\MSVC\SDL2-2.0.4\include;C:\MSVC\glm;C:\MSVC\glew-1.12.0\include;C:\MSVC\freeglut\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\MSVC\TinyXML2;C:\MSVC\iconv-1.9.2.win32\include;C:\MSVC\zlib-1.2.5\include;C:\MSVC\libxml2-2.7.8.win32\include;C:\MSVC\SDL2-2.0.4\include;C:\MSVC\glm;C:\MSVC\glew-1.12.0\include;C:\MSVC\freeglut\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\MSVC\SDL2-2.0.4\lib\x86;C:\MSVC\glew-1.12.0\lib;C:\MSVC\freeglut\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glew32.lib;freeglutd.lib;SDL2.lib;SDL2main.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\MSVC\iconv-1.9.2.win32\lib;C:\MSVC\libxml2-2.7.8.win32\lib;C:\MSVC\zlib-1.2.5\lib;C:\MSVC\SDL2-2.0.4\lib\x86;C:\MSVC\glew-1.12.0\lib;C:\MSVC\freeglut\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glew32.lib;freeglutd.lib;SDL2.lib;SDL2main.lib;opengl32.lib;libxml2.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -139,15 +146,15 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>C:\MSVC\SDL2-2.0.4\include;C:\MSVC\glm;C:\MSVC\glew-1.12.0\include;C:\MSVC\freeglut\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\MSVC\TinyXML2;C:\MSVC\iconv-1.9.2.win32\include;C:\MSVC\zlib-1.2.5\include;C:\MSVC\libxml2-2.7.8.win32\include;C:\MSVC\SDL2-2.0.4\include;C:\MSVC\glm;C:\MSVC\glew-1.12.0\include;C:\MSVC\freeglut\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\MSVC\SDL2-2.0.4\lib\x86;C:\MSVC\glew-1.12.0\lib;C:\MSVC\freeglut\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glew32.lib;freeglutd.lib;SDL2.lib;SDL2main.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\MSVC\iconv-1.9.2.win32\lib;C:\MSVC\libxml2-2.7.8.win32\lib;C:\MSVC\zlib-1.2.5\lib;C:\MSVC\SDL2-2.0.4\lib\x86;C:\MSVC\glew-1.12.0\lib;C:\MSVC\freeglut\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glew32.lib;freeglutd.lib;SDL2.lib;SDL2main.lib;opengl32.lib;libxml2.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

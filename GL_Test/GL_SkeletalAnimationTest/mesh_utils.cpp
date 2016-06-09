@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <string>
+#include <sstream>
 #include <iostream>
 #include "GL/glew.h"
 #include "glm/glm.hpp"
@@ -12,7 +13,7 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "math.h"
 
-
+#include <fstream>
 ///Standard Mesh Stuff~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Mesh::Mesh() {
@@ -128,7 +129,7 @@ Mesh::Mesh(char *fileName, GLuint prog) {
 
 Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program) {
 	GLuint attrib_vertices;
-	
+
 	this->program = program;
 
 	glGenBuffers(1, &ibo_elements);
@@ -181,10 +182,10 @@ void Mesh::updateMesh(const GLfloat *vertices, int vNum, const GLuint *elements,
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_coord);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0])*vNum, vertices, GL_STATIC_DRAW);
 
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+glBindBuffer(GL_ARRAY_BUFFER, 0);
+glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-	//the attribute information stored in the vao should still be valid
+//the attribute information stored in the vao should still be valid
 }
 
 void Mesh::updateProgram(GLuint program) {
@@ -259,7 +260,7 @@ Skeletal_Mesh_simple::Skeletal_Mesh_simple(Armature* skeleton, GLuint program) {
 }
 
 Skeletal_Mesh_simple::~Skeletal_Mesh_simple() {
-	for (int i = 0; i < mesh.size(); i++) {
+	for (unsigned int i = 0; i < mesh.size(); i++) {
 		delete mesh[i];
 	}
 	mesh.clear();
@@ -267,14 +268,54 @@ Skeletal_Mesh_simple::~Skeletal_Mesh_simple() {
 }
 
 void Skeletal_Mesh_simple::Draw(const glm::mat4 &mvp) {
-	for (int i = 0; i < mesh.size(); i++) {
+	for (unsigned int i = 0; i < mesh.size(); i++) {
 		mesh[i]->Draw(mvp*skeleton->matrix[i]);
 	}
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~SKELETAL MESH~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, Armature *skeleton, GLuint program): Mesh(vertices, vNum, elements, eNum, program), skeleton(skeleton){
+void Skeletal_Mesh::updateWeights(const GLuint *bIndex, const GLfloat* bWeight, const GLuint * bNum, int vNum) {
+	GLuint attribute_boneIndex;
+	GLuint attribute_boneWeight;
+	GLuint attribute_boneNum;
+
+	using namespace std;
+	cout << "A" << endl;
+	cout << bIndex[0] << endl;
+	cout << vNum << endl;
+
+	glGenBuffers(1, &vbo_bIndex);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bIndex);
+	glBufferData(GL_ARRAY_BUFFER, (vNum/3 * maxBNum)*sizeof(bIndex[0]), bIndex, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_bWeight);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bWeight);
+	glBufferData(GL_ARRAY_BUFFER, (vNum / 3 * maxBNum)*sizeof(bWeight[0]), bWeight, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_bNum);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bNum);
+	glBufferData(GL_ARRAY_BUFFER, (vNum / 3)*sizeof(bNum[0]), bNum, GL_DYNAMIC_DRAW);
+
+	glBindVertexArray(vao);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bIndex);
+	attribute_boneIndex = getAttrib(program, "boneIndex");
+	glVertexAttribPointer(attribute_boneIndex, maxBNum, GL_UNSIGNED_INT, GL_FALSE, 0, NULL);
+	glEnableVertexAttribArray(attribute_boneIndex);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bWeight);
+	attribute_boneWeight = getAttrib(program, "boneWeight");
+	glVertexAttribPointer(attribute_boneWeight, maxBNum, GL_FLOAT, GL_FALSE, 0, NULL);
+	glEnableVertexAttribArray(attribute_boneWeight);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_bNum);
+	attribute_boneNum = getAttrib(program, "boneNum");
+	glVertexAttribIPointer(attribute_boneNum, 1, GL_UNSIGNED_INT, 0, NULL);
+	glEnableVertexAttribArray(attribute_boneNum);
+}
+
+Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, Armature *skeleton, GLuint program) : Mesh(vertices, vNum, elements, eNum, program), skeleton(skeleton) {
 	std::vector<GLuint> bIndex;
 	std::vector<GLfloat> bWeight;
 	std::vector<GLuint> bNum;
@@ -283,31 +324,33 @@ Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *el
 	GLuint attribute_boneWeight;
 	GLuint attribute_boneNum;
 
-	int vertPerBone = vNum / 3 / skeleton->size;
-	int curBone = -1;
-
 	bIndex.resize(vNum / 3 * 4);//Number of vertices *5
 	bWeight.resize(vNum / 3 * 4);
 	bNum.resize(vNum / 3);
-	for (int i = 0; i < vNum / 3; i++) {
-		if (i%vertPerBone == 0) curBone++;
-
-		bIndex[i * 4] = curBone;
-		bWeight[i * 4] = 1.0;
-		bNum[i] = 1;
-	}
 
 	/*
+	int vertPerBone = vNum / 3 / skeleton->size;
+	int curBone = -1;
+	for (int i = 0; i < vNum / 3; i++) {
+	if (i%vertPerBone == 0) curBone++;
+
+	bIndex[i * 4] = curBone;
+	bWeight[i * 4] = 1.0;
+	bNum[i] = 1;
+	}
+	*/
+
+	//automaticall assigns each vertex to follow the bone witht the closest head
 	for (int i = 0; i < vNum / 3; i++) {
 		int closestBone = 0;
 		float dist;
 		float minDist;
 		glm::vec3 tempVec = glm::vec3(vertices[i * 3], vertices[i * 3 + 1], vertices[i * 3 + 2]);
-		glm::vec3 locVec = glm::vec3(skeleton->loc[0], skeleton->loc[0 + 1], vertices[0 + 2]);
+		glm::vec3 locVec = glm::vec3(glm::inverse(skeleton->invBasePose[0]) * glm::vec4(0, 0, 0, 1));//glm::vec3(skeleton->loc[0], skeleton->loc[0 + 1], vertices[0 + 2]);
 		dist = abs(glm::length(tempVec - locVec));
 		minDist = dist;
 		for (int j = 1; j < skeleton->size; j++) {
-			locVec = glm::vec3(skeleton->loc[j*3 + 0], skeleton->loc[j * 3 + 1], vertices[j * 3 + 2]);
+			locVec = glm::vec3(glm::inverse(skeleton->invBasePose[j]) * glm::vec4(0, 0, 0, 1));
 			dist = abs(glm::length(tempVec - locVec));
 			if (dist < minDist) {
 				minDist = dist;
@@ -315,51 +358,38 @@ Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *el
 			}
 		}
 
-		vGroup.push_back(closestBone);
+		bIndex[i * 4] = closestBone;
+		bWeight[i * 4] = 1.0;
+		bNum[i] = 1;
 	}
-	*/
 
-	glGenBuffers(1, &vbo_bIndex);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_bIndex);
-	glBufferData(GL_ARRAY_BUFFER, bIndex.size()*sizeof(bIndex[0]), bIndex.data(), GL_DYNAMIC_DRAW);
+	updateWeights(bIndex.data(), bWeight.data(), bNum.data(), vNum);
+	//this needs to be in an "updateProgram"
+	uniform_BoneTransform = getUniform(program, "boneMatrices");
+	bindSpaceMatrix = glm::mat4(1.0);
+}
 
-	glGenBuffers(1, &vbo_bWeight);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_bWeight);
-	glBufferData(GL_ARRAY_BUFFER, bWeight.size()*sizeof(bWeight[0]), bWeight.data(), GL_DYNAMIC_DRAW);
-
-	glGenBuffers(1, &vbo_bNum);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_bNum);
-	glBufferData(GL_ARRAY_BUFFER, bNum.size()*sizeof(bNum[0]), bNum.data(), GL_DYNAMIC_DRAW);
-
-	glBindVertexArray(vao);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_bIndex);
-	attribute_boneIndex = getAttrib(program, "boneIndex");
-	glVertexAttribIPointer(attribute_boneIndex, 4, GL_UNSIGNED_INT, 0, NULL);
-	glEnableVertexAttribArray(attribute_boneIndex);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_bWeight);
-	attribute_boneWeight = getAttrib(program, "boneWeight");
-	glVertexAttribPointer(attribute_boneWeight, 4, GL_FLOAT, GL_FALSE, 0, NULL);
-	glEnableVertexAttribArray(attribute_boneWeight);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo_bNum);
-	attribute_boneNum = getAttrib(program, "boneNum");
-	glVertexAttribIPointer(attribute_boneNum, 1, GL_UNSIGNED_INT, 0, NULL);
-	glEnableVertexAttribArray(attribute_boneNum);
-
+Skeletal_Mesh::Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, const GLuint *bIndex, const GLfloat* bWeight, const GLuint * bNum, const glm::mat4 &bindSpaceMatrix, Armature *skeleton, GLuint program) : Mesh(vertices, vNum, elements, eNum, program), bindSpaceMatrix(bindSpaceMatrix), skeleton(skeleton) {
+	updateWeights(bIndex, bWeight, bNum, vNum);
 	uniform_BoneTransform = getUniform(program, "boneMatrices");
 }
 
-void Skeletal_Mesh::Draw(const glm::mat4 &mvp){
+void Skeletal_Mesh::Draw(const glm::mat4 &mvp) {
 	glUseProgram(program);
 
 	skeleton->setMatrices();
 
+	std::vector<glm::mat4> matrices;
+
+	matrices.resize(skeleton->size);
+	for (int i = 0; i < matrices.size(); i++) {
+		matrices[i] = skeleton->matrix[i]* bindSpaceMatrix;
+	}
+
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
 	glUniformMatrix4fv(uniform_Matrix, 1, GL_FALSE, glm::value_ptr(mvp));
-	glUniformMatrix4fv(uniform_BoneTransform, skeleton->size, GL_FALSE, (GLfloat *)skeleton->matrix.data());
+	glUniformMatrix4fv(uniform_BoneTransform, skeleton->size, GL_FALSE, (GLfloat *)matrices.data());
 
 
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);

@@ -11,8 +11,10 @@
 #define MAXBONES 50//might use arrays at some point; not today, suckkaah
 #define MAXCHANNEL 155//should be around MAXBONES*3+3 plus a few more for kicks, why not?
 
+
+
 class Mesh {
-protected:
+public:
 	GLuint vao;
 	GLuint vbo_coord;
 	GLuint ibo_elements;
@@ -24,7 +26,6 @@ protected:
 	//may make this a 'mutable Mesh' subclass, to handle "morphing" the mesh
 	//std::vector<float> vertices;
 	//std::vector<float> indices;
-
 public:
 	Mesh();
 	Mesh(GLuint prog);
@@ -54,7 +55,7 @@ public:
 	void Draw(const glm::mat4 &mvp);
 };
 
-class Skeletal_Mesh : Mesh{
+class Skeletal_Mesh : public Mesh{
 public:
 	GLuint vbo_bIndex;
 	GLuint vbo_bWeight;
@@ -62,8 +63,16 @@ public:
 
 	GLuint uniform_BoneTransform;
 
+	glm::mat4 bindSpaceMatrix;
+
 	Armature* skeleton;
+
+	static const int maxBNum = 4;
+
 	Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, Armature *skeleton, GLuint program);
+	Skeletal_Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, const GLuint *bIndex, const GLfloat* bWeight, const GLuint * bNum, const glm::mat4 &bindSpaceMatrix, Armature *skeleton, GLuint program);
 	virtual void Draw(const glm::mat4 &mvp);
-};
+private:
+	void updateWeights(const GLuint *bIndex, const GLfloat* bWeight, const GLuint * bNum, int vNum);
+	};
 #endif

@@ -20,6 +20,7 @@
 #include "shader_utils.h"
 #include "armature_utils.h"
 #include "mesh_utils.h"
+#include "DAE_utils.h"
 //TODO
 //Stop using globals (hahaha)
 using namespace std;//mmmmmmmmmmmmmmmmmmmmmm
@@ -36,6 +37,9 @@ int curGroup =2 , curFile = 1;
 
 Skeletal_Mesh_simple *skelly;
 Skeletal_Mesh *skeletor;
+
+Armature *armie;
+Skeletal_Mesh * ugh;
 
 Mesh *testMesh;
 
@@ -91,8 +95,8 @@ void genMesh(std::vector<GLfloat> &vertices, std::vector<GLuint> &elements, Arma
 		glm::vec4 temp = glm::vec4(0, 0, 0, 1);
 
 		temp = transform*temp;
-		cout << temp.x << ", " << temp.y << ", " << temp.z << ", " << "; ";
-		cout << armature->loc[i*3 +0] << ", " << armature->loc[i * 3 + 1] << ", " << armature->loc[i * 3 +2] << ", " << endl;
+		//cout << temp.x << ", " << temp.y << ", " << temp.z << ", " << "; ";
+		//cout << armature->loc[i*3 +0] << ", " << armature->loc[i * 3 + 1] << ", " << armature->loc[i * 3 +2] << ", " << endl;
 		int size = sizeof(baseVertices) / sizeof(baseVertices[0]);
 
 		for (int i = 0; i < size; i += 3) {
@@ -112,14 +116,13 @@ bool init() {
 	//fileName = new char[9];
 	fileName = "01_01.bvh";
 
-	cout << "loading file" << endl;
 	armature.loadBVHFull("walk.bvh");
 
 	vector<GLfloat> vertices;
 	vector<GLuint> elements;
 
-	//loadObj(vertices, elements, "object");
-	armature.setMatrices_simple();
+	loadObj(vertices, elements, "object");
+	//armature.setMatrices_simple();
 	genMesh(vertices, elements, &armature);
 	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs.glsl" },
 	{ GL_FRAGMENT_SHADER, "fs.glsl" } };
@@ -135,8 +138,18 @@ bool init() {
 	skelly = new Skeletal_Mesh_simple(&armature, program);
 	skeletor = new Skeletal_Mesh(vertices.data(), vertices.size(), elements.data(), elements.size(), &armature, skel_program);
 	testMesh = new Mesh(vertices.data(), vertices.size(), elements.data(), elements.size(), program);
-
 	timeLast = SDL_GetTicks();
+
+
+	ugh = loadDAESkelMesh("what.dae", skel_program);
+	//Animation_Sampler* anim = loadDAEAnim("skeletonTest.dae");
+	//armie = loadDAESkelMesh("skeletonTest.dae");
+	//armie->anim = anim;
+	//armie->print();
+	//armie->anim = anim;
+
+	//loadDAE(testMesh, "untitled.dae");
+
 	return true;
 }
 
@@ -222,13 +235,13 @@ std::string getFile(int &curGroup, int &curFile){
 void idle() {
 	//updating the matrics (i.e. animation) done in the idle function
 
-	//shouldn't use GLUT
 	timeLast = timeCurr;
 	timeCurr = SDL_GetTicks();
 	char* fileName;
 
 	armature.tick(timeCurr - timeLast);
-
+	ugh->skeleton->tick(timeCurr - timeLast);
+	//armie->tick(timeCurr - timeLast);
 	//float angle = (timeCurr - timeLast) / 1000.0*(3.14159265358979323846) / 4;
 	
 	//model matrix: transforms local model coordinates into global world coordinates
@@ -253,7 +266,6 @@ void idle() {
 		cin >> curFile;
 		curFile--;
 		curFrame = 65535;
-
 	}
 	if (command.find("a") != -1) {
 		X -= 50.0*(timeCurr - timeLast) / 1000;
@@ -287,9 +299,11 @@ void display(SDL_Window *window) {
 
 	//skelly->Draw(mvp);
 	skeletor->Draw(mvp);
-	//glDisable(GL_DEPTH_TEST);
+	ugh->Draw(mvp);
+	glDisable(GL_DEPTH_TEST);
 	//armature.draw(mvp);
-	//glEnable(GL_DEPTH_TEST);
+	//ugh->skeleton->draw(mvp);
+	glEnable(GL_DEPTH_TEST);
 	//testMesh->Draw(mvp);
 	//glFlush(); //??
 
@@ -302,13 +316,13 @@ void free_res() {
 void handleKeyDown(const char key) {
 	if (command.find((char)key) == -1) {
 		command.push_back(key);
-		cout << "key down: " << key << " command string: " << command << endl;
+		//cout << "key down: " << key << " command string: " << command << endl;
 	}
 
 }
 void handleKeyUp(const char key) {
 	command.erase(command.find(key), 1);
-	cout << "key up: " << key << " command string: " << command << endl;
+	//cout << "key up: " << key << " command string: " << command << endl;
 }
 
 void mainLoop(SDL_Window *window) {
@@ -325,7 +339,6 @@ void mainLoop(SDL_Window *window) {
 }
 
 int main(int argc, char *argv[]) {
-
 	SDL_Window *window;
 
 	SDL_Init(SDL_INIT_VIDEO );
@@ -355,5 +368,4 @@ int main(int argc, char *argv[]) {
 	free_res();
 
 	return 0;
-	
 }
