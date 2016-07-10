@@ -89,6 +89,7 @@ Mesh::Mesh(GLuint program) {
 	glEnableVertexAttribArray(attrib_vertices);
 
 	uniform_Matrix = getUniform(program, "mvp");
+	uniform_collision = getUniform(program, "collision");
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -125,6 +126,8 @@ Mesh::Mesh(char *fileName, GLuint prog) {
 
 	uniform_Matrix = getUniform(program, "mvp");
 
+	uniform_collision = getUniform(program, "collision");
+
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
@@ -155,6 +158,8 @@ Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, 
 
 	uniform_Matrix = getUniform(program, "mvp");
 
+	uniform_collision = getUniform(program, "collision");
+
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
@@ -172,6 +177,7 @@ void Mesh::Draw(const glm::mat4 &mvp) {
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
 	glUniformMatrix4fv(uniform_Matrix, 1, GL_FALSE, glm::value_ptr(mvp));
+	glUniform1i(uniform_collision, (int)(collision));
 
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
 

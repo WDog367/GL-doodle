@@ -38,6 +38,9 @@ public:
 	std::vector<GLfloat> keyTime;
 	std::vector<glm::mat4> keyTransform;
 
+	std::vector<glm::quat> keyRot;
+	std::vector<glm::vec3> keyOff;
+
 	int frameNum;
 	GLfloat length;
 
@@ -52,11 +55,24 @@ public:
 	Sampler(std::vector<GLfloat> time, std::vector<glm::mat4> transform, GLfloat length);
 };
 
-class Sampler_Slerp: public Sampler {
-	std::vector<float> angle;
+class Sampler_Linear: public Sampler {
+public:
+	//BST might be better than a vector?
+	std::vector<GLfloat> keyTime;
+	std::vector<glm::mat4> keyTransform;
+
+	int frameNum;
+	GLfloat length;
+
 public:
 	virtual glm::mat4 getMatrix(float t);
 	virtual void addKey(const GLfloat &newTime, const glm::mat4 &newTransform);
+
+	Sampler_Linear();
+	Sampler_Linear(GLfloat* time, glm::mat4* transform, int frameNum);
+	Sampler_Linear(GLfloat* time, glm::mat4* transform, int frameNum, GLfloat length);
+	Sampler_Linear(std::vector<GLfloat> time, std::vector<glm::mat4> transform);
+	Sampler_Linear(std::vector<GLfloat> time, std::vector<glm::mat4> transform, GLfloat length);
 };
 
 class Animation_Sampler :public Animation {

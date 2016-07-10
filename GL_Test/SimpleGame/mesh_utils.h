@@ -18,6 +18,8 @@ public:
 	GLuint uniform_Matrix;
 	GLuint program;
 
+	GLuint uniform_collision;
+
 	//this data is stored in VBO's,
 	//not strictly necessary to have application-accessible copies
 	//may make this a 'mutable Mesh' subclass, to handle "morphing" the mesh
@@ -37,6 +39,8 @@ public:
 
 	void updateMesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum);
 	void updateProgram(GLuint program);//also indices of vertex and element attributes as parameters?
+
+	int collision = false;
 };
 
 #endif

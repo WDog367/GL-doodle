@@ -36,14 +36,14 @@ Animation::Animation() {
 	curTime = 0;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Sampler Functionality~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 glm::mat4 Sampler::getMatrix(float t) {
 	using namespace std;
 	int curMat = -1, nextMat;
 	float t1, t2;
 	float weight;
 	glm::mat4 result;
-
+	
+	//what is this? store the fucking current time in the fucking animation
 	while (curMat < frameNum - 1 && keyTime[curMat + 1] < t) {
 		curMat++;
 	}
@@ -61,9 +61,49 @@ glm::mat4 Sampler::getMatrix(float t) {
 	t2 = ((nextMat == -1) ? length : keyTime[nextMat]);
 	weight = t / (t2 - t1);
 
+	glm::mat4 mat1;
+	glm::mat4 mat2;
+
+	if (curMat != -1 && nextMat != -1) {
+		mat1 = glm::translate(keyOff[curMat])*glm::mat4_cast(keyRot[curMat]);
+		mat2 = glm::translate(keyOff[nextMat])*glm::mat4_cast(keyRot[nextMat]);
+
+		glm::quat from = keyRot[curMat];
+		glm::quat to = keyRot[nextMat];
+		glm::quat res;
+		float omega, cosom, sinom, scale0, scale1;
+
+		cosom = glm::dot(from, to);
+		if (cosom < 0.0) {
+			cosom = -cosom;
+			to.w = -to.w;
+			to.x = -to.x;
+			to.y = -to.y;
+			to.z = -to.z;
+		}
+		if ((1.0 - cosom) > 0.00001) {
+			omega = glm::acos(cosom);
+			sinom = sin(omega);
+			scale0 = sin((1.0 - weight) * omega) / sinom;
+			scale1 = sin(weight * omega) / sinom;
+		}
+		else {
+			scale0 = 1.0 - weight;
+			scale1 = weight;
+			sinom = 1;
+		}
+		res.x = scale0 * from.x + scale1 * to.x;
+		res.y = scale0 * from.y + scale1 * to.y;
+		res.z = scale0 * from.z + scale1 * to.z;
+		res.w = scale0 * from.w + scale1 * to.w;
+
+		//std::cout << glm::length(res) << "," << sinom << "\n";
+		return glm::translate((1 - weight)*keyOff[curMat] + (weight)*keyOff[nextMat])*glm::mat4_cast(res);
+	}
+	
 	result = glm::mat4(0.0);
 	if (curMat != -1) result += (1 - weight)*keyTransform[curMat];
-	if (nextMat != -1) result += (weight) * keyTransform[nextMat];
+	if (nextMat != -1) result += (weight)* keyTransform[nextMat];
 
 	return result;
 
@@ -76,17 +116,25 @@ void Sampler::addKey(const GLfloat &newTime, const glm::mat4 &newTransform) {
 
 	//finding the proper place to 
 	using namespace std;
-	cout << "Framenum v size" << frameNum << ", " << keyTime.size() << ", " << keyTransform.size() << endl;
+//	cout << "Framenum v size" << frameNum << ", " << keyTime.size() << ", " << keyTransform.size() << ", " << keyOff.size() << ", " << keyRot.size() << endl;
+
+	glm::vec3 newOffset = glm::vec3(newTransform[3]);
+	glm::quat newRot = glm::quat_cast(glm::mat4(newTransform[0], newTransform[1], newTransform[2], glm::vec4(0, 0, 0, 1)));
+
 	while (i < frameNum) {
 		if (newTime < keyTime[i]) {
 			keyTime.insert(keyTime.begin() + i, newTime);
 			keyTransform.insert(keyTransform.begin() + i, newTransform);
+			keyOff.insert(keyOff.begin() + i, newOffset);
+			keyRot.insert(keyRot.begin() + i, newRot);
 			frameNum++;
 			return;
 		}
 		else if (newTime == keyTime[i]) {
 			keyTime[i] = newTime;
 			keyTransform[i] = newTransform;
+			keyRot[i] = newRot;
+			keyOff[i] = newOffset;
 			return;
 		}
 		i++;
@@ -94,6 +142,8 @@ void Sampler::addKey(const GLfloat &newTime, const glm::mat4 &newTransform) {
 
 	keyTime.push_back(newTime);
 	keyTransform.push_back(newTransform);
+	keyRot.push_back(newRot);
+	keyOff.push_back(newOffset);
 	frameNum++;
 	if (newTime > length) length = newTime;
 }
@@ -120,8 +170,133 @@ Sampler::Sampler(GLfloat* time, glm::mat4* transform, int frameNum, GLfloat leng
 Sampler::Sampler(std::vector<GLfloat> time, std::vector<glm::mat4> transform) : Sampler(time.data(), transform.data(), time.size()) {}
 Sampler::Sampler(std::vector<GLfloat> time, std::vector<glm::mat4> transform, GLfloat length) : Sampler(time.data(), transform.data(), time.size(), length) {}
 
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Slerp Sampler~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Linear Sampler~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+glm::mat4 Sampler_Linear::getMatrix(float t) {
+	using namespace std;
+	int curMat = -1, nextMat;
+	float t1, t2;
+	float weight;
+	glm::mat4 result;
 
+	while (curMat < frameNum - 1 && keyTime[curMat + 1] < t) {
+		curMat++;
+	}
+
+	if (curMat == frameNum - 1) {
+		nextMat = -1;
+	}
+	else {
+		nextMat = curMat + 1;
+	}
+
+	if (curMat != -1) { t = t - keyTime[curMat]; }
+
+	t1 = ((curMat == -1) ? 0 : keyTime[curMat]);
+	t2 = ((nextMat == -1) ? length : keyTime[nextMat]);
+	weight = t / (t2 - t1);
+
+	glm::mat4 mat1;
+	glm::mat4 mat2;
+#if 0
+
+	if (curMat != -1 && nextMat != -1) {
+		mat1 = glm::translate(keyOff[curMat])*glm::mat4_cast(keyRot[curMat]);
+		mat2 = glm::translate(keyOff[nextMat])*glm::mat4_cast(keyRot[nextMat]);
+
+		glm::quat from = keyRot[curMat];
+		glm::quat to = keyRot[nextMat];
+		glm::quat res;
+		float omega, cosom, sinom, scale0, scale1;
+
+		cosom = glm::dot(from, to);
+		if (cosom < 0.0) {
+			cosom = -cosom;
+			to.w = -to.w;
+			to.x = -to.x;
+			to.y = -to.y;
+			to.z = -to.z;
+		}
+		if ((1.0 - cosom) > 0.00001) {
+			omega = glm::acos(cosom);
+			sinom = sin(omega);
+			scale0 = sin((1.0 - weight) * omega) / sinom;
+			scale1 = sin(weight * omega) / sinom;
+		}
+		else {
+			scale0 = 1.0 - weight;
+			scale1 = weight;
+			sinom = 1;
+		}
+		res.x = scale0 * from.x + scale1 * to.x;
+		res.y = scale0 * from.y + scale1 * to.y;
+		res.z = scale0 * from.z + scale1 * to.z;
+		res.w = scale0 * from.w + scale1 * to.w;
+
+		//std::cout << glm::length(res) << "," << sinom << "\n";
+
+		return glm::translate((1 - weight)*keyOff[curMat] + (weight)*keyOff[nextMat])*glm::mat4_cast(res);
+	}
+#endif // 0
+
+
+	result = glm::mat4(0.0);
+	if (curMat != -1) result += (1 - weight)*keyTransform[curMat];
+	if (nextMat != -1) result += (weight)* keyTransform[nextMat];
+
+	return result;
+
+}
+
+
+void Sampler_Linear::addKey(const GLfloat &newTime, const glm::mat4 &newTransform) {
+	int i = 0;
+//	std::vector<GLfloat>::iterator it;
+
+	using namespace std;
+	//	cout << "Framenum v size" << frameNum << ", " << keyTime.size() << ", " << keyTransform.size() << ", " << keyOff.size() << ", " << keyRot.size() << endl;
+
+	while (i < frameNum) {
+		if (newTime < keyTime[i]) {
+			keyTime.insert(keyTime.begin() + i, newTime);
+			keyTransform.insert(keyTransform.begin() + i, newTransform);
+			frameNum++;
+			return;
+		}
+		else if (newTime == keyTime[i]) {
+			keyTime[i] = newTime;
+			keyTransform[i] = newTransform;
+			return;
+		}
+		i++;
+	}
+
+	keyTime.push_back(newTime);
+	keyTransform.push_back(newTransform);
+	frameNum++;
+	if (newTime > length) length = newTime;
+}
+
+Sampler_Linear::Sampler_Linear() : frameNum(0), length(0) {}
+
+Sampler_Linear::Sampler_Linear(GLfloat* time, glm::mat4* transform, int frameNum) {
+	this->frameNum = 0;
+	for (int i = 0; i < frameNum; i++) {
+		addKey(time[i], transform[i]);
+	}
+	length = keyTime[frameNum - 1];
+}
+
+Sampler_Linear::Sampler_Linear(GLfloat* time, glm::mat4* transform, int frameNum, GLfloat length) : Sampler(time, transform, frameNum) {
+	if (length > this->length) {
+		this->length = length;
+	}
+	else {
+		std::cerr << "invalid length passed to sampler" << std::endl;
+	}
+}
+
+Sampler_Linear::Sampler_Linear(std::vector<GLfloat> time, std::vector<glm::mat4> transform) : Sampler(time.data(), transform.data(), time.size()) {}
+Sampler_Linear::Sampler_Linear(std::vector<GLfloat> time, std::vector<glm::mat4> transform, GLfloat length) : Sampler(time.data(), transform.data(), time.size(), length) {}
 
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Sampler Animation~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

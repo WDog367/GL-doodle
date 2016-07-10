@@ -39,12 +39,17 @@ Skeletal_Mesh_simple *skelly;
 Skeletal_Mesh *skeletor;
 
 Armature *armie;
-Skeletal_Mesh * ugh;
+std::vector<Skeletal_Mesh *> ugh;
+int num = 5;
 
 Mesh *testMesh;
 
 GLuint program;
 GLuint skel_program;
+
+glm::mat4 model;
+glm::mat4 view;
+glm::mat4 projection;
 
 //const int maxfile = 124;
 bool repeat = false;
@@ -140,8 +145,8 @@ bool init() {
 	testMesh = new Mesh(vertices.data(), vertices.size(), elements.data(), elements.size(), program);
 	timeLast = SDL_GetTicks();
 
-
-	ugh = loadDAESkelMesh("what.dae", skel_program);
+	for (int i = 0; i < num; i++)
+		ugh.push_back(loadDAESkelMesh("what2.dae", skel_program));
 	//Animation_Sampler* anim = loadDAEAnim("skeletonTest.dae");
 	//armie = loadDAESkelMesh("skeletonTest.dae");
 	//armie->anim = anim;
@@ -240,19 +245,20 @@ void idle() {
 	char* fileName;
 
 	armature.tick(timeCurr - timeLast);
-	ugh->skeleton->tick(timeCurr - timeLast);
+	for (int i = 0; i < num; i++)
+		ugh[i]->skeleton->tick(timeCurr - timeLast);
 	//armie->tick(timeCurr - timeLast);
 	//float angle = (timeCurr - timeLast) / 1000.0*(3.14159265358979323846) / 4;
 	
 	//model matrix: transforms local model coordinates into global world coordinates
-	glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(X, Y, Z))*glm::rotate(A, glm::vec3(0, 1, 0));
+	model = glm::translate(glm::vec3(X, Y, Z));
 	//	*glm::rotate(angle, glm::vec3(0.0, 1.0, 0.0));
 
 	//view matrix: transforms world coordinates into relative-the-camera view-space coordinates
-	glm::mat4 view = glm::lookAt(glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 0.0, -4.0), glm::vec3(0.0, 1.0, 0.0));//I don't necessarily like this
-
+	//view = glm::lookAt(glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 0.0, -4.0), glm::vec3(0.0, 1.0, 0.0));//I don't necessarily like this
+	view = glm::translate(glm::vec3(0, 0, -100.0))*glm::rotate(A, glm::vec3(0, 1, 0));
 	//projection matrix: transforms view space coordinates into 2d screen coordinates
-	glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
+	projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
 
 	mvp = projection*view*model;//combination of model, view, projection matrices
 	//mvp = model;
@@ -290,6 +296,7 @@ void idle() {
 	else if (command.find("c") != -1) {
 		A += 3.14159*(timeCurr - timeLast) / 1000;
 	}
+	std::cout << timeCurr - timeLast << std::endl;
 	//glutPostRedisplay();
 }
 
@@ -299,7 +306,9 @@ void display(SDL_Window *window) {
 
 	//skelly->Draw(mvp);
 	skeletor->Draw(mvp);
-	ugh->Draw(mvp);
+	for (int i = 0; i < ugh.size(); i++) {
+		ugh[i]->Draw(projection*view*(glm::translate(glm::vec3(0,0,i*15)))*model);
+	}
 	glDisable(GL_DEPTH_TEST);
 	//armature.draw(mvp);
 	//ugh->skeleton->draw(mvp);
