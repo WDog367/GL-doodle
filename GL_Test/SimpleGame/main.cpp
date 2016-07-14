@@ -153,7 +153,7 @@ private:
 
 	static const int minSize = 1;
 	static const int minObj = 10;
-	static const int maxDepth = 15;
+	static const int maxDepth = 20;
 	static std::queue<Actor*> pendingInsertion;
 	bool treeBuilt = false;
 	bool treeReady = false;
@@ -218,18 +218,18 @@ public:
 		glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &size);
 
 		//calculations would be better done on GPU w\ openGL call, but meh
-		//also, might be better to just to rotation, and then do the translation on the resulting two points
+		//also, might be better to just to rotation, and then do the translation on the resulting two point
 		for (int i = 0; i < size / sizeof(GLfloat); i += 3) {
 			glm::vec3 tempV = glm::vec3(
 				glm::translate(glm::mat4(1.0f), pos)
 				*glm::scale(scale)
-				*glm::vec4(vertices[i * 3], vertices[i * 3 + 1], vertices[i * 3 + 2], 1.0));
-
+				*glm::vec4(vertices[i], vertices[i + 1], vertices[i + 2], 1.0));
+			
 			if (i == 0) {
 				bound.min = tempV;
 				bound.max = tempV;
 			}
-			else
+			else {
 				if (tempV.x < bound.min.x) {
 					bound.min.x = tempV.x;
 				}
@@ -250,9 +250,9 @@ public:
 				else if (tempV.z > bound.max.z) {
 					bound.max.z = tempV.z;
 				}
+			}
 		}
 
-		//std::cout << "(" << bound.min.x << "," << bound.min.y << "," << bound.min.z << ")" << ",(" << bound.max.x << "," << bound.max.y << "," << bound.max.z << ")" << std::endl;
 
 		glUnmapBuffer(GL_COPY_READ_BUFFER);
 		glBindBuffer(GL_COPY_READ_BUFFER, -1);
@@ -588,9 +588,9 @@ int lastchange;
 glm::vec3 cameraPos = glm::vec3(0, 0, 10);
 glm::quat cameraRot = glm::quat();
 
-glm::vec3 levelSize = glm::vec3(128, 128, 128);
+glm::vec3 levelSize = glm::vec3(512, 512, 512);
 AABB levelregion(glm::vec3(0, 0, 0), levelSize);
-int num = 500;
+int num = 3000;
 
 OctTree *collisionTree;
 
@@ -599,19 +599,20 @@ Mesh *box;
 std::vector<Actor*> boxList;
 
 void model_Init() {
-	GLfloat baseVertices[] = {
-		// front
+	std::vector<GLfloat> vertices = {
+		               // front
 		-1.0, -1.0,  1.0,
 		1.0, -1.0,  1.0,
 		1.0,  1.0,  1.0,
 		-1.0,  1.0,  1.0,
-		// back
+		               // back
 		-1.0, -1.0, -1.0,
 		1.0, -1.0, -1.0,
 		1.0,  1.0, -1.0,
 		-1.0,  1.0, -1.0,
-	};
-	GLuint baseElements[] = {
+		};
+		               
+	std::vector<GLuint> indices = {
 		// front
 		0, 1, 2,
 		2, 3, 0,
@@ -632,16 +633,50 @@ void model_Init() {
 		6, 7, 3,
 	};
 
+//uncomment this for circles instead of squares
+#if 0
+	int rings = 10;
+	int sectors = 15;
+	GLfloat radius = 1;
+
+	int r, s;
+	vertices.resize(rings * sectors * 3);
+	std::vector<GLfloat>::iterator v = vertices.begin();
+
+	for (r = 0; r < rings; r++) for (s = 0; s < sectors; s++) {
+		float y = -radius + radius*2.f * r / (rings - 1);
+		float rad = sqrt(radius*radius - y*y);
+
+		float x = rad*cos(2 * M_PI * s / sectors);
+		float z = rad*sin(2 * M_PI * s / sectors);
+
+		*v++ = x;
+		*v++ = y;
+		*v++ = z;
+	}
+
+	indices.resize(rings * sectors * 3*2);
+	std::vector<GLuint>::iterator i = indices.begin();
+	for (r = 0; r < rings - 1; r++) for (s = 0; s < sectors - 1; s++) {
+		*i++ = r * sectors + s;
+		*i++ = r * sectors + (s + 1);
+		*i++ = (r + 1) * sectors + (s + 1);
+
+		*i++ = (r + 1) * sectors + (s + 1);
+		*i++ = (r + 1) * sectors + (s);
+		*i++ = r * sectors + s;
+	}
+#endif
 	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs.glsl" },
 	{ GL_FRAGMENT_SHADER, "fs.glsl" } };
 
 	prog = LoadProgram(shaders, 2);
-	box = new Mesh(baseVertices, 8 * 3, baseElements, 12 * 3, prog);
+	box = new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog);
 
 	boxes.push_back(new Actor(box, 0, 0, 0));
 	boxes[0]->scale = glm::vec3(1, 1, 1);
 	for (int i = 1; i < num; i++) {
-		box = new Mesh(baseVertices, 8 * 3, baseElements, 12 * 3, prog);
+		box = new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog);
 		boxes.push_back(new Actor(box, rand() % (int)levelSize.x, rand() % (int)levelSize.y, rand() % (int)levelSize.z));
 		boxes[i]->scale = glm::vec3((float)(rand() % 100) / 50, (float)(rand() % 100) / 50, (float)(rand() % 100) / 50);
 		boxes[i]->scale = glm::vec3(1, 1, 1);
@@ -796,6 +831,8 @@ int main(int argc, char *argv[]) {
 
 			boxes[i]->mesh->Draw(mvp);
 		}
+
+		boxes[0]->bound.draw(vp);
 
 		collisionTree->DrawContainingRegion(boxes[0], vp);
 
