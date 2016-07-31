@@ -28,6 +28,8 @@ class OctTree;
 std::vector<Actor*> boxes;
 static int comp;
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~
+bool collision_GJK(Actor*, Actor*);
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~
 class AABB {
 public:
 	glm::vec3 min;
@@ -136,6 +138,63 @@ void AABB::draw(const glm::mat4 &mvp) {
 
 }
 
+
+void drawDot(const glm::vec3 pos, const glm::mat4 &mvp) {
+	using namespace std;
+
+	GLuint vao;
+	GLuint vbo;
+	GLuint vbo_index;
+	GLuint program;
+	GLuint attrib_coord;
+	GLuint attrib_index;
+	GLuint uniform_matrix;
+
+	GLfloat vertices[] = {
+		pos.x, pos.y, pos.z,
+	};
+
+	std::vector<GLfloat> skeleton;
+
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs_wireframe.glsl" },
+	{ GL_FRAGMENT_SHADER, "fs_wireframe.glsl" } };
+
+	program = LoadProgram(shaders, 2);
+	glUseProgram(program);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	attrib_coord = getAttrib(program, "coord");
+	glEnableVertexAttribArray(attrib_coord);
+	glVertexAttribPointer(
+		attrib_coord,	//attrib 'index'
+		3,				//pieces of data per index
+		GL_FLOAT,		//type of data
+		GL_FALSE,		//whether to normalize
+		0,				//space b\w data
+		0				//offset from buffer start
+		);
+
+	uniform_matrix = getUniform(program, "mvp");
+
+	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
+
+	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+
+	glDrawArrays(GL_POINTS, 0, 1);
+
+	glDeleteBuffers(1, &vbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteProgram(program);
+
+}
+
 bool intersect(const AABB &a, const AABB &b) {
 	comp++;
 	return (a.min.x <= b.max.x && a.max.x >= b.min.x) &&
@@ -206,6 +265,7 @@ public:
 
 	glm::vec3 pos;
 	glm::vec3 scale;
+	glm::quat rot;
 
 	bool hasMoved = false;
 
@@ -223,6 +283,7 @@ public:
 			glm::vec3 tempV = glm::vec3(
 				glm::translate(glm::mat4(1.0f), pos)
 				*glm::scale(scale)
+				*glm::mat4_cast(rot)
 				*glm::vec4(vertices[i], vertices[i + 1], vertices[i + 2], 1.0));
 			
 			if (i == 0) {
@@ -258,6 +319,46 @@ public:
 		glBindBuffer(GL_COPY_READ_BUFFER, -1);
 	}
 
+	glm::vec3 furthestPointInDirection(glm::vec3 dir) {
+		glm::vec3 result;
+		GLfloat length;
+		GLfloat* vertices;
+		int size;
+
+		//dir = glm::inverse(glm::mat3(glm::mat4_cast(rot)))*dir;
+
+		glBindBuffer(GL_COPY_READ_BUFFER, mesh->vbo_coord);
+		vertices = (GLfloat*)glMapBuffer(GL_COPY_READ_BUFFER, GL_READ_ONLY);
+		glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &size);
+
+		for (int i = 0; i < size / sizeof(GLfloat); i += 3) {
+			//it would be more efficient to multiply the dir by the inverse, rather than mult every point by the trans
+			glm::vec3 tempV = glm::vec3(
+				glm::translate(glm::mat4(1.0f), pos)
+				*glm::scale(scale)
+				*glm::mat4_cast(rot)
+				*glm::vec4(vertices[i], vertices[i + 1], vertices[i + 2], 1.0));
+
+			GLfloat tempLength = glm::dot(dir, tempV);
+
+			if (i == 0) {
+				result = tempV;
+				length = tempLength;
+			}
+			else {
+				if (tempLength > length) {
+					result = tempV;
+					length = tempLength;
+				}
+			}
+		}
+
+
+		glUnmapBuffer(GL_COPY_READ_BUFFER);
+		glBindBuffer(GL_COPY_READ_BUFFER, -1);
+
+		return result;
+	}
 public:
 	Actor(Mesh *mesh, GLfloat x, GLfloat y, GLfloat z) : mesh(mesh), pos(glm::vec3(x, y, z)) {
 
@@ -538,11 +639,16 @@ void OctTree::CheckCollision(std::vector<Actor*> &incObjList) {
 		for (; jt != id; jt++) {
 			//check collision
 			if (intersect((*it)->bound, (*jt)->bound)) {
-				//do something
-				(*it)->mesh->collision = true;
-				(*jt)->mesh->collision = true;
 				if ((*it == boxes[0]) || *jt == boxes[0]) {
-					std::cout << "hit!\n";
+					if (collision_GJK(*it, *jt)) {
+						//std::cout << "hit!\n";
+						(*it)->mesh->collision = true;
+						(*jt)->mesh->collision = true;
+					}
+				}
+				else {
+					(*it)->mesh->collision = true;
+					(*jt)->mesh->collision = true;
 				}
 			}
 		}
@@ -551,10 +657,17 @@ void OctTree::CheckCollision(std::vector<Actor*> &incObjList) {
 		for (jt = incObjList.begin(); jt != jd; jt++) {
 			if (intersect((*it)->bound, (*jt)->bound)) {
 				//do something
-				(*it)->mesh->collision = true;
-				(*jt)->mesh->collision = true;
+
 				if ((*it == boxes[0]) || *jt == boxes[0]) {
-					std::cout << "hit!\n";
+					if (collision_GJK(*it, *jt)) {
+						//std::cout << "hit!\n";
+						(*it)->mesh->collision = true;
+						(*jt)->mesh->collision = true;
+					}
+				}
+				else {
+					(*it)->mesh->collision = true;
+					(*jt)->mesh->collision = true;
 				}
 			}
 		}
@@ -634,11 +747,15 @@ void model_Init() {
 	};
 
 //uncomment this for circles instead of squares
-#if 0
-	int rings = 10;
-	int sectors = 15;
-	GLfloat radius = 1;
+#define SPHERE 1
+#if SPHERE
+	vertices.resize(0);
+	indices.resize(0);
 
+	int rings = 20;
+	int sectors = 20;
+	GLfloat radius = 1;
+	
 	int r, s;
 	vertices.resize(rings * sectors * 3);
 	std::vector<GLfloat>::iterator v = vertices.begin();
@@ -658,13 +775,18 @@ void model_Init() {
 	indices.resize(rings * sectors * 3*2);
 	std::vector<GLuint>::iterator i = indices.begin();
 	for (r = 0; r < rings - 1; r++) for (s = 0; s < sectors - 1; s++) {
-		*i++ = r * sectors + s;
-		*i++ = r * sectors + (s + 1);
-		*i++ = (r + 1) * sectors + (s + 1);
+		if (s == 10000) {
 
-		*i++ = (r + 1) * sectors + (s + 1);
-		*i++ = (r + 1) * sectors + (s);
-		*i++ = r * sectors + s;
+		}
+		else {
+			*i++ = r * sectors + s;
+			*i++ = r * sectors + (s + 1);
+			*i++ = (r + 1) * sectors + (s + 1);
+
+			*i++ = (r + 1) * sectors + (s + 1);
+			*i++ = (r + 1) * sectors + (s);
+			*i++ = r * sectors + s;
+		}
 	}
 #endif
 	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs.glsl" },
@@ -673,10 +795,65 @@ void model_Init() {
 	prog = LoadProgram(shaders, 2);
 	box = new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog);
 
-	boxes.push_back(new Actor(box, 0, 0, 0));
+	boxes.push_back(new Actor(new Mesh("convex.obj", prog), 0, 0, 0));
+	//boxes.push_back(new Actor(new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog), 0, 0, 0));
 	boxes[0]->scale = glm::vec3(1, 1, 1);
 	for (int i = 1; i < num; i++) {
-		box = new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog);
+		std::vector<GLfloat> newVerts = vertices;
+
+#if SPHERE && 0
+		std::vector<float> map((rings)*(sectors));
+
+		for (int i = 0; i < rings; i++) {
+			for (int j = 0; j < sectors; j+= 2) {
+				if (i % 2 == 1) {
+					j++;
+				}
+				map[i*sectors + j] = (float)(rand() % 100) / 100 + 0.5;
+			}
+		}
+		for (int i = 0; i < rings; i++) {
+			for (int j = 0; j < sectors; j += 2) {
+				if (i % 2 == 0) {
+					j++;
+				}
+				int nh, ph, nv, pv;
+				float thing =0;
+				nh = (i < rings - 1) ? i + 1 : -1;
+				ph = (i > 0) ? i - 1 : -1;
+				nv = (j < sectors - 1) ? j + 1 : 0;
+				pv = (j > 0) ? j - 1: sectors - 1;
+				if (nh != -1) {
+					thing += map[nh*sectors + j];
+				}
+				else {
+					thing += 1;
+				}
+				if (ph != -1) {
+					thing += map[ph*sectors + j];
+				}
+				else {
+					thing += 1;
+				}
+				thing += map[i*sectors + pv];
+
+				thing += map[i*sectors + nv];
+
+				map[i*sectors + j] = thing / 4;
+			}
+		}
+
+		for (int i = 0; i < newVerts.size() /3; i++) {
+			glm::vec3 tempVec = glm::vec3(newVerts[i*3], newVerts[i * 3 + 1], newVerts[i * 3 + 2]);
+			tempVec = tempVec + map[i]*tempVec;
+
+			newVerts[i * 3] = tempVec.x; 
+			newVerts[i * 3 + 1] = tempVec.y;
+			newVerts[i * 3 + 2] = tempVec.z;
+		}
+#endif
+
+		box = new Mesh(newVerts.data(), newVerts.size(), indices.data(), indices.size(), prog);
 		boxes.push_back(new Actor(box, rand() % (int)levelSize.x, rand() % (int)levelSize.y, rand() % (int)levelSize.z));
 		boxes[i]->scale = glm::vec3((float)(rand() % 100) / 50, (float)(rand() % 100) / 50, (float)(rand() % 100) / 50);
 		boxes[i]->scale = glm::vec3(1, 1, 1);
@@ -684,6 +861,158 @@ void model_Init() {
 	for (int i = 0; i < num; i++) {
 		boxList.push_back(boxes[i]);
 	}
+}
+
+void print(glm::vec3 a) {
+	std::cout << a.x << ", " << a.y << ", " << a.z;
+}
+
+bool collision_GJK(Actor* a, Actor* b) {
+	bool canExit = false;
+	glm::vec3 dir(0, 0, 1);
+	std::vector<glm::vec3> simplex;
+	glm::vec3 newPoint;
+
+	glm::vec3 ao;
+
+	glm::vec3 ac;
+	glm::vec3 ad;
+	//1. generate support point in arbitrary direction
+	simplex.push_back(a->furthestPointInDirection(dir) - b->furthestPointInDirection(-dir));
+	//2. set search direction to negative of support point
+
+	dir = -(simplex[0]);
+	//iterative portion
+	while (1) {
+		//3. find support point in search direction
+		newPoint = (a->furthestPointInDirection(dir) - b->furthestPointInDirection(-dir));
+
+		if (!(glm::dot(newPoint, dir) > 0)) {
+			//4. if new point dit not pass the origin (i.e. if it's dot product w\ the search dir is negative),  there is no intersection
+			std::cout << "no intersection occured" << std::endl;
+			return false;
+		}
+		//5. push that suckah to the simplex
+		simplex.push_back(newPoint);
+		//6. depends on the size of our simplex
+		ao = -newPoint;
+		if (simplex.size() == 2) {
+			glm::vec3 ab;
+			//2 point case
+			//set the search direction to be perpendicular to the simplex line, and coplanar w\ the 2 points and the origin
+			ab = simplex[0] - simplex[1];
+			dir = glm::cross(glm::cross(ab, ao), ab);
+		}
+		else if (simplex.size() == 3) {
+			glm::vec3 ab= simplex[1] - simplex[2];
+			glm::vec3 ac = simplex[0] - simplex[2];
+			glm::vec3 norm = glm::cross(ab, ac);
+
+			if (glm::dot((glm::cross(ab, norm)), ao) > 0) {
+				//it's outside the triangle, in front of ab
+				simplex[0] = simplex[1];
+				simplex[1] = simplex[2];
+				simplex.resize(2);
+
+				dir = glm::cross(glm::cross(ab, ao), ab);
+			}
+			else if (glm::dot((glm::cross(norm, ac)), ao) > 0) {
+				//it's outside the triangle in front of ac
+				simplex[0] = simplex[0];
+				simplex[1] = simplex[2];
+				simplex.resize(2);
+
+				dir = glm::cross(glm::cross(ac, ao), ac);
+			}
+			else {
+				//the point lies inside the triangle, hurrah!
+				if (glm::dot(norm, ao) > 0) {
+					//the origin is above the triangle, so the simplex isn't modified
+					dir = norm;
+				}
+				else {
+					//the origin is below the triangle
+					//reverse the triangle (i.e. swap b/c)
+					glm::vec3 temp = simplex[0];
+					simplex[0] = simplex[1];
+					simplex[1] = temp;
+					dir = -norm;
+				}
+			}
+		}
+		else if (simplex.size() == 4) {
+			glm::vec3 ab = simplex[2] - simplex[3];
+			glm::vec3 ac = simplex[1] - simplex[3];
+			glm::vec3 ad = simplex[0] - simplex[3];
+			glm::vec3 norm;
+
+			if (glm::dot(glm::cross(ab, ac), ao) > 0) {
+				//origin is in front of abc
+				//set simplex to be abc triangle
+				simplex.erase(simplex.begin());
+			}
+			else if (glm::dot(glm::cross(ac, ad), ao) > 0) {
+				//origin is in front of acd; simplex becomes this triangle
+				simplex[0] = simplex[0];
+				simplex[1] = simplex[1];
+				simplex[2] = simplex[3];
+				simplex.resize(3);
+			}
+			else if (glm::dot(glm::cross(ad, ab), ao) > 0) {
+				//origin in front of triangle adb, simplex becomes this
+				simplex[1] = simplex[0];
+				simplex[0] = simplex[2];
+				simplex[2] = simplex[3];
+				simplex.resize(3);
+			}
+			else {
+				//simplex is inside of the silly pyramid!
+				break;
+			}
+
+			//same as 3-point case with our new simplex
+			ab = simplex[1] - simplex[2];
+			ac = simplex[0] - simplex[2];
+			norm = glm::cross(ab, ac);
+
+			if (glm::dot((glm::cross(ab, norm)), ao) > 0) {
+				//it's outside the triangle, in front of ab
+				simplex[0] = simplex[1];
+				simplex[1] = simplex[2];
+				simplex.resize(2);
+
+				dir = glm::cross(glm::cross(ab, ao), ab);
+			}
+			else if (glm::dot((glm::cross(norm, ac)), ao) > 0) {
+				//it's outside the triangle in front of ac
+				simplex[0] = simplex[0];
+				simplex[1] = simplex[2];
+				simplex.resize(2);
+
+				dir = glm::cross(glm::cross(ac, ao), ac);
+			}
+			else {
+				//the point lies inside the triangle, hurrah!
+				if (glm::dot(norm, ao) > 0) {
+					//the origin is above the triangle, so the simplex isn't modified
+					dir = norm;
+				}
+				else {
+					//this should never be called, as the origin should be above this simplex
+					//the origin is below the triangle
+					//reverse the triangle (i.e. swap b/c)
+					std::cout << "#####this shouldn't ever happen, wtf#####\n";
+					glm::vec3 temp = simplex[0];
+					simplex[0] = simplex[1];
+					simplex[1] = temp;
+					dir = -norm;
+				}
+			}
+		}
+
+		
+	}
+	return true;
 }
 
 void handleKeyUp(const char key) {
@@ -816,7 +1145,8 @@ int main(int argc, char *argv[]) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		cameraPos = boxes[0]->pos + cameraRot*glm::vec3(0, 3, 10);
-
+		boxes[0]->rot = cameraRot;
+		boxes[0]->calcAABB();
 		glm::mat4 view = glm::inverse(glm::mat4_cast(cameraRot))*glm::translate(glm::mat4(1.0), -cameraPos);
 		//glm::mat4 view = glm::lookAt(glm::vec3(0.0, 0.0, -10.0), glm::vec3(0.0, 0.0, 4.0), glm::vec3(0.0, 1.0, 0.0));//I don't necessarily like this
 		glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
@@ -824,7 +1154,7 @@ int main(int argc, char *argv[]) {
 		glm::mat4 vp = projection*view;//combination of model, view, projection matrices
 									   //mvp = model;
 		for (int i = 0; i < boxes.size(); i++) {
-			glm::mat4 model = glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale);
+			glm::mat4 model = glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale)*glm::mat4_cast(boxes[i]->rot);
 			glm::mat4 mvp = vp*model;
 
 			//	boxes[i]->bound.draw(vp);
@@ -833,6 +1163,16 @@ int main(int argc, char *argv[]) {
 		}
 
 		boxes[0]->bound.draw(vp);
+		
+
+		//Drawing the closest point on the main object to the camera, as a test
+		glDisable(GL_DEPTH_TEST);
+		glEnable(GL_PROGRAM_POINT_SIZE);
+		glPointSize(10);
+		glm::vec3 tempV = boxes[0]->furthestPointInDirection(cameraRot*glm::vec3(0, 0, 1));
+		//std::cout << tempV.x << ", " << tempV.y << ", " << tempV.z << ", " << std::endl;
+		drawDot(tempV, vp);
+		glEnable(GL_DEPTH_TEST);
 
 		collisionTree->DrawContainingRegion(boxes[0], vp);
 
