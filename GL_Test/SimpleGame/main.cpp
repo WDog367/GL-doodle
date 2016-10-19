@@ -20,6 +20,174 @@
 
 #include <random>
 
+#include "collision_utils.h"
+
+Collider *player;
+glm::vec3 playerpos = glm::vec3(0, 15, 0);
+
+glm::vec3 cameraPos = glm::vec3(0, 0, 10);
+glm::quat cameraRot = glm::quat();
+
+std::vector<Collider *> shapes(4);
+
+void Init_shapes() {
+	glm::mat4 trans;
+
+	trans = glm::translate(glm::vec3(0, 0, 0));
+	shapes[0] = new AABB(glm::vec3(trans*glm::vec4(-1, -1, -1, 1)), glm::vec3(trans*glm::vec4(1, 1, 1, 1)));
+
+	trans = trans = glm::translate(glm::vec3(0, 0, 5));
+	shapes[1] = new OBB(glm::vec3(-1, -1, -1), glm::vec3(1, 1, 1), trans);
+
+	trans = glm::translate(glm::vec3(0, 0, 10));
+	shapes[2] = new Triangle(glm::vec3(trans*glm::vec4(-1, -1, 0, 1)), glm::vec3(trans*glm::vec4(1, -1, 0, 1)), glm::vec3(trans*glm::vec4(0, 1, 0, 1)));
+
+	trans = glm::translate(glm::vec3(0, 0, 15));
+	shapes[3] = new Edge(glm::vec3(trans*glm::vec4(-1, -1, -1, 1)), glm::vec3(trans*glm::vec4(1, 1, 1, 1)));
+
+	//swap this bad boy out to test out different shapes
+	trans = glm::translate(playerpos);
+	player = new AABB(glm::vec3(trans*glm::vec4(-1, -1, -1, 1)), glm::vec3(trans*glm::vec4(1, 1, 1, 1)));
+
+}
+
+void handleKeyUp(const char key) {
+
+}
+void handleKeyDown(const char key) {
+	switch (key) {
+	case 'W':
+	case 'w':player->translate(cameraRot*glm::vec3(0, 0, -1)); playerpos += cameraRot*glm::vec3(0, 0, -1); break;
+	case 'S':
+	case 's':player->translate(cameraRot*glm::vec3(0, 0, 1));  playerpos += cameraRot*glm::vec3(0, 0, 1);  break;
+	case 'A':
+	case 'a':player->translate(cameraRot*glm::vec3(-1, 0, 0)); playerpos += cameraRot*glm::vec3(-1, 0, 0);  break;
+	case 'D':
+	case 'd':player->translate((cameraRot*glm::vec3(1, 0, 0))); playerpos += cameraRot*glm::vec3(1, 0, 0);  break;
+	case 'Q':
+	case 'q':player->translate(cameraRot*glm::vec3(0, -1, 0)); playerpos += cameraRot*glm::vec3(0, -1, 0); break;
+	case 'E':
+	case 'e':player->translate(cameraRot*glm::vec3(0, 1, 0)); playerpos += cameraRot*glm::vec3(0, 1, 0);  break;
+	case 'Z':
+	case 'z': cameraRot = glm::quat(cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot; break;
+	case 'C':
+	case 'c': cameraRot = glm::quat(-cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot; break;
+	case 'R':
+	case 'r': cameraRot = glm::quat(cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;  break;
+	case 'F':
+	case 'f':cameraRot = glm::quat(-cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;  break;
+	}
+}
+
+//mouse movemet
+void handleMotion(int x, int y) {
+	float dx = M_PI / 180 * x / 10;
+	float dy = M_PI / 180 * y / 10;
+
+	cameraRot = glm::quat(-cos(dx / 2), (float)sin(dx / 2)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot;
+	cameraRot = glm::quat(-cos(dy / 2), (float)sin(dy / 2)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;
+
+}
+int main(int argc, char *argv[]) {
+	SDL_Window *window;
+	OBB ball(glm::vec3(-1, -1, -1), glm::vec3(1, 1, 1));
+
+
+	//initializing SDL window
+	SDL_Init(SDL_INIT_VIDEO);
+	window = SDL_CreateWindow("Super Amazing Fun Times", 100, 100, 640, 480, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+	SDL_SetRelativeMouseMode(SDL_TRUE);
+
+	//initializing Opengl stuff
+	SDL_GL_CreateContext(window);
+	glewInit();
+	glEnable(GL_DEPTH_TEST);
+	//initialize the models
+	Init_shapes();
+
+	int timeCurr = SDL_GetTicks();
+	int timeLast = timeCurr;
+
+	//main loop
+	while (1) {
+		timeLast = timeCurr;
+		timeCurr = SDL_GetTicks();
+
+		//polling for events
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_QUIT) return 0;
+			if (event.type == SDL_KEYDOWN) handleKeyDown(event.key.keysym.sym);
+			if (event.type == SDL_KEYUP) handleKeyUp(event.key.keysym.sym);
+			if (event.type == SDL_MOUSEMOTION) handleMotion(event.motion.xrel, event.motion.yrel);
+		}
+		//collision detection
+	//	for (int i = 0; i < shapes.size(); i++) {
+	//		if (collide(player, shapes[i])) {
+	//			std::cout << i << ", ";
+	//		}
+	//	}
+		std::cout << std::endl;
+
+		//the drawing happens here
+		glClearColor(1.0, 1.0, 1.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		cameraPos = playerpos + cameraRot*glm::vec3(0, 3, 10);
+//		boxes[0]->rot = cameraRot;
+//		boxes[0]->calcAABB();
+		glm::mat4 view = glm::inverse(glm::mat4_cast(cameraRot))*glm::translate(glm::mat4(1.0), -cameraPos);
+		//glm::mat4 view = glm::lookAt(glm::vec3(0.0, 0.0, -10.0), glm::vec3(0.0, 0.0, 4.0), glm::vec3(0.0, 1.0, 0.0));//I don't necessarily like this
+		glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
+
+		glm::mat4 vp = projection*view;//combination of model, view, projection matrices
+									   //mvp = model;
+
+		glm::mat4 model = glm::mat4(1.0f);//glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale)*glm::mat4_cast(boxes[i]->rot);
+		glm::mat4 mvp = vp*model;
+		for (int i = 0; i < shapes.size(); i++) {
+			glm::mat4(1.0f);//glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale)*glm::mat4_cast(boxes[i]->rot);
+			mvp = vp*model;
+
+			//	boxes[i]->bound.draw(vp);
+
+			shapes[i]->draw(mvp);
+		}
+
+		player->draw(mvp);
+
+		SDL_GL_SwapWindow(window);
+
+	}
+
+	//	return 0;
+}
+
+#if 0
+#include "SDL.h"
+//#include "SDL_keyboard.h"
+//#include "SDL_keycode.h"
+
+#include <vector>
+#include <queue>
+#include <list>
+#include "math.h"
+#include "GL/glew.h"
+#include "glm/glm.hpp"//includes most (if not all?) of GLM library
+#include "glm/gtx/transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
+#include "GL/glew.h"
+
+#include "mesh_utils.h"
+#include "shader_utils.h"
+
+#include <iostream>
+
+#include <random>
+
+#include "collision_utils.h"
+
 //forward declarations
 class Actor;
 class AABB;
@@ -27,117 +195,7 @@ class OctTree;
 
 std::vector<Actor*> boxes;
 static int comp;
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-bool collision_GJK(Actor*, Actor*);
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~
-class AABB {
-public:
-	glm::vec3 min;
-	glm::vec3 max;
-
-	AABB() :
-		min(glm::vec3(0, 0, 0)),
-		max(glm::vec3(0, 0, 0))
-	{}
-
-	AABB(glm::vec3 min, glm::vec3 max) :
-		min(min),
-		max(max)
-	{}
-
-	bool contains(const AABB &box) {
-		comp++;
-		return (box.min.x > this->min.x && box.min.y > this->min.y && box.min.z > this->min.z) &&
-			(box.max.x < this->max.x && box.max.y < this->max.y && box.max.z < this->max.z);
-	}
-
-	void draw(const glm::mat4 &vp);
-};
-void AABB::draw(const glm::mat4 &mvp) {
-	using namespace std;
-
-	GLuint vao;
-	GLuint vbo;
-	GLuint vbo_index;
-	GLuint program;
-	GLuint attrib_coord;
-	GLuint attrib_index;
-	GLuint uniform_matrix;
-
-	GLfloat vertices[] = {
-		min.x, min.y, min.z,
-		min.x, max.y, min.z,
-		max.x, max.y, min.z,
-		max.x, min.y, min.z,
-		min.x, min.y, max.z,
-		min.x, max.y, max.z,
-		max.x, max.y, max.z,
-		max.x, min.y, max.z,
-	};
-
-	GLuint elements[] = {
-		0, 1,
-		1, 2,
-		2, 3,
-		3, 0,
-
-		4, 5,
-		5, 6,
-		6, 7,
-		7, 4,
-
-		0, 4,
-		1, 5,
-		2, 6,
-		3, 7,
-	};
-
-	std::vector<GLfloat> skeleton;
-
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glGenBuffers(1, &vbo_index);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo_index);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(elements), elements, GL_STATIC_DRAW);
-
-	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs_wireframe.glsl" },
-	{ GL_FRAGMENT_SHADER, "fs_wireframe.glsl" } };
-
-	program = LoadProgram(shaders, 2);
-	glUseProgram(program);
-
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	attrib_coord = getAttrib(program, "coord");
-	glEnableVertexAttribArray(attrib_coord);
-	glVertexAttribPointer(
-		attrib_coord,	//attrib 'index'
-		3,				//pieces of data per index
-		GL_FLOAT,		//type of data
-		GL_FALSE,		//whether to normalize
-		0,				//space b\w data
-		0				//offset from buffer start
-		);
-
-	uniform_matrix = getUniform(program, "mvp");
-
-	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
-
-	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-
-	glDrawElements(GL_LINES, size / sizeof(GLuint), GL_UNSIGNED_INT, NULL);
-
-	glDeleteBuffers(1, &vbo);
-	glDeleteBuffers(1, &vbo_index);
-	glDeleteVertexArrays(1, &vao);
-	glDeleteProgram(program);
-
-}
-
+glm::vec3 tempV (0, 0, 0);
 
 void drawDot(const glm::vec3 pos, const glm::mat4 &mvp) {
 	using namespace std;
@@ -195,12 +253,7 @@ void drawDot(const glm::vec3 pos, const glm::mat4 &mvp) {
 
 }
 
-bool intersect(const AABB &a, const AABB &b) {
-	comp++;
-	return (a.min.x <= b.max.x && a.max.x >= b.min.x) &&
-		(a.min.y <= b.max.y && a.max.y >= b.min.y) &&
-		(a.min.z <= b.max.z && a.max.z >= b.min.z);
-}
+//could be a static function of AABB
 
 class OctTree {
 private:
@@ -258,7 +311,7 @@ void OctTree::draw(const glm::mat4 &vp) {
 
 }
 
-class Actor {
+class Actor : public IGJKFcns {
 public:
 	Mesh *mesh;
 	AABB bound;
@@ -267,6 +320,7 @@ public:
 	glm::vec3 scale;
 	glm::quat rot;
 
+	glm::vec3 vel;
 	bool hasMoved = false;
 
 	void calcAABB() {
@@ -319,7 +373,7 @@ public:
 		glBindBuffer(GL_COPY_READ_BUFFER, -1);
 	}
 
-	glm::vec3 furthestPointInDirection(glm::vec3 dir) {
+	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir) {
 		glm::vec3 result;
 		GLfloat length;
 		GLfloat* vertices;
@@ -632,18 +686,26 @@ void OctTree::CheckCollision(std::vector<Actor*> &incObjList) {
 
 	id = objList.end();
 	jd = incObjList.end();
+
+	glm::vec3 coll_point;
+	glm::vec3 coll_norm;
+	GLfloat coll_depth;
+
 	for (it = objList.begin(); it != id; it++) {
 		//fist, check the objects of this node against other ones in the node
 		jt = it;
 		jt++;
 		for (; jt != id; jt++) {
 			//check collision
-			if (intersect((*it)->bound, (*jt)->bound)) {
+			if (collide((*it)->bound, (*jt)->bound)) {
 				if ((*it == boxes[0]) || *jt == boxes[0]) {
-					if (collision_GJK(*it, *jt)) {
+					if (collision_GJK(*it, *jt, &coll_point, &coll_norm, &coll_depth)) {
 						//std::cout << "hit!\n";
+						tempV = coll_point;
 						(*it)->mesh->collision = true;
 						(*jt)->mesh->collision = true;
+						(*it)->translate(coll_depth*coll_norm);
+						//(*jt)->translate(-coll_norm);
 					}
 				}
 				else {
@@ -655,14 +717,17 @@ void OctTree::CheckCollision(std::vector<Actor*> &incObjList) {
 
 		//next, check them against the incoming object list
 		for (jt = incObjList.begin(); jt != jd; jt++) {
-			if (intersect((*it)->bound, (*jt)->bound)) {
+			if (collide((*it)->bound, (*jt)->bound)) {
 				//do something
 
 				if ((*it == boxes[0]) || *jt == boxes[0]) {
-					if (collision_GJK(*it, *jt)) {
+					if (collision_GJK(*it, *jt, &coll_point, &coll_norm, &coll_depth)) {
 						//std::cout << "hit!\n";
+						tempV = coll_point;
 						(*it)->mesh->collision = true;
 						(*jt)->mesh->collision = true;
+						(*it)->translate(coll_depth*coll_norm);
+						//(*jt)->translate(-coll_norm);
 					}
 				}
 				else {
@@ -795,7 +860,7 @@ void model_Init() {
 	prog = LoadProgram(shaders, 2);
 	box = new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog);
 
-	boxes.push_back(new Actor(new Mesh("convex.obj", prog), 0, 0, 0));
+	boxes.push_back(new Actor(new Mesh("ship.obj", prog), 0, 0, 0));
 	//boxes.push_back(new Actor(new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog), 0, 0, 0));
 	boxes[0]->scale = glm::vec3(1, 1, 1);
 	for (int i = 1; i < num; i++) {
@@ -867,153 +932,6 @@ void print(glm::vec3 a) {
 	std::cout << a.x << ", " << a.y << ", " << a.z;
 }
 
-bool collision_GJK(Actor* a, Actor* b) {
-	bool canExit = false;
-	glm::vec3 dir(0, 0, 1);
-	std::vector<glm::vec3> simplex;
-	glm::vec3 newPoint;
-
-	glm::vec3 ao;
-
-	glm::vec3 ac;
-	glm::vec3 ad;
-	//1. generate support point in arbitrary direction
-	simplex.push_back(a->furthestPointInDirection(dir) - b->furthestPointInDirection(-dir));
-	//2. set search direction to negative of support point
-
-	dir = -(simplex[0]);
-	//iterative portion
-	while (1) {
-		//3. find support point in search direction
-		newPoint = (a->furthestPointInDirection(dir) - b->furthestPointInDirection(-dir));
-
-		if (!(glm::dot(newPoint, dir) > 0)) {
-			//4. if new point dit not pass the origin (i.e. if it's dot product w\ the search dir is negative),  there is no intersection
-			std::cout << "no intersection occured" << std::endl;
-			return false;
-		}
-		//5. push that suckah to the simplex
-		simplex.push_back(newPoint);
-		//6. depends on the size of our simplex
-		ao = -newPoint;
-		if (simplex.size() == 2) {
-			glm::vec3 ab;
-			//2 point case
-			//set the search direction to be perpendicular to the simplex line, and coplanar w\ the 2 points and the origin
-			ab = simplex[0] - simplex[1];
-			dir = glm::cross(glm::cross(ab, ao), ab);
-		}
-		else if (simplex.size() == 3) {
-			glm::vec3 ab= simplex[1] - simplex[2];
-			glm::vec3 ac = simplex[0] - simplex[2];
-			glm::vec3 norm = glm::cross(ab, ac);
-
-			if (glm::dot((glm::cross(ab, norm)), ao) > 0) {
-				//it's outside the triangle, in front of ab
-				simplex[0] = simplex[1];
-				simplex[1] = simplex[2];
-				simplex.resize(2);
-
-				dir = glm::cross(glm::cross(ab, ao), ab);
-			}
-			else if (glm::dot((glm::cross(norm, ac)), ao) > 0) {
-				//it's outside the triangle in front of ac
-				simplex[0] = simplex[0];
-				simplex[1] = simplex[2];
-				simplex.resize(2);
-
-				dir = glm::cross(glm::cross(ac, ao), ac);
-			}
-			else {
-				//the point lies inside the triangle, hurrah!
-				if (glm::dot(norm, ao) > 0) {
-					//the origin is above the triangle, so the simplex isn't modified
-					dir = norm;
-				}
-				else {
-					//the origin is below the triangle
-					//reverse the triangle (i.e. swap b/c)
-					glm::vec3 temp = simplex[0];
-					simplex[0] = simplex[1];
-					simplex[1] = temp;
-					dir = -norm;
-				}
-			}
-		}
-		else if (simplex.size() == 4) {
-			glm::vec3 ab = simplex[2] - simplex[3];
-			glm::vec3 ac = simplex[1] - simplex[3];
-			glm::vec3 ad = simplex[0] - simplex[3];
-			glm::vec3 norm;
-
-			if (glm::dot(glm::cross(ab, ac), ao) > 0) {
-				//origin is in front of abc
-				//set simplex to be abc triangle
-				simplex.erase(simplex.begin());
-			}
-			else if (glm::dot(glm::cross(ac, ad), ao) > 0) {
-				//origin is in front of acd; simplex becomes this triangle
-				simplex[0] = simplex[0];
-				simplex[1] = simplex[1];
-				simplex[2] = simplex[3];
-				simplex.resize(3);
-			}
-			else if (glm::dot(glm::cross(ad, ab), ao) > 0) {
-				//origin in front of triangle adb, simplex becomes this
-				simplex[1] = simplex[0];
-				simplex[0] = simplex[2];
-				simplex[2] = simplex[3];
-				simplex.resize(3);
-			}
-			else {
-				//simplex is inside of the silly pyramid!
-				break;
-			}
-
-			//same as 3-point case with our new simplex
-			ab = simplex[1] - simplex[2];
-			ac = simplex[0] - simplex[2];
-			norm = glm::cross(ab, ac);
-
-			if (glm::dot((glm::cross(ab, norm)), ao) > 0) {
-				//it's outside the triangle, in front of ab
-				simplex[0] = simplex[1];
-				simplex[1] = simplex[2];
-				simplex.resize(2);
-
-				dir = glm::cross(glm::cross(ab, ao), ab);
-			}
-			else if (glm::dot((glm::cross(norm, ac)), ao) > 0) {
-				//it's outside the triangle in front of ac
-				simplex[0] = simplex[0];
-				simplex[1] = simplex[2];
-				simplex.resize(2);
-
-				dir = glm::cross(glm::cross(ac, ao), ac);
-			}
-			else {
-				//the point lies inside the triangle, hurrah!
-				if (glm::dot(norm, ao) > 0) {
-					//the origin is above the triangle, so the simplex isn't modified
-					dir = norm;
-				}
-				else {
-					//this should never be called, as the origin should be above this simplex
-					//the origin is below the triangle
-					//reverse the triangle (i.e. swap b/c)
-					std::cout << "#####this shouldn't ever happen, wtf#####\n";
-					glm::vec3 temp = simplex[0];
-					simplex[0] = simplex[1];
-					simplex[1] = temp;
-					dir = -norm;
-				}
-			}
-		}
-
-		
-	}
-	return true;
-}
 
 void handleKeyUp(const char key) {
 
@@ -1023,13 +941,13 @@ void handleKeyDown(const char key) {
 	case 'W':
 	case 'w': boxes[0]->translate(cameraRot*glm::vec3(0, 0, -1)); break;
 	case 'S':
-	case 's': boxes[0]->translate((-1.0f)*cameraRot*glm::vec3(0, 0, -1)); break;
+	case 's': boxes[0]->translate(cameraRot*glm::vec3(0, 0, 1)); break;
 	case 'A':
-	case 'a': boxes[0]->translate(cameraRot*glm::vec3(1, 0, 0)); break;
+	case 'a': boxes[0]->translate(cameraRot*glm::vec3(-1, 0, 0)); break;
 	case 'D':
-	case 'd': boxes[0]->translate((-1.0f)*(cameraRot*glm::vec3(1, 0, 0))); break;
+	case 'd': boxes[0]->translate((cameraRot*glm::vec3(1, 0, 0))); break;
 	case 'Q':
-	case 'q': boxes[0]->translate(cameraRot*glm::vec3(0, 1, 0)); break;
+	case 'q': boxes[0]->translate(cameraRot*glm::vec3(0, -1, 0)); break;
 	case 'E':
 	case 'e': boxes[0]->translate(cameraRot*glm::vec3(0, 1, 0)); break;
 	case 'Z':
@@ -1047,6 +965,7 @@ void handleKeyDown(const char key) {
 	}
 }
 
+//mouse movemet
 void handleMotion(int x, int y) {
 	float dx = M_PI / 180 * x / 10;
 	float dy = M_PI / 180 * y / 10;
@@ -1057,6 +976,8 @@ void handleMotion(int x, int y) {
 }
 int main(int argc, char *argv[]) {
 	SDL_Window *window;
+	OBB ball(glm::vec3(-1, -1, -1), glm::vec3(1, 1, 1));
+
 
 	//initializing SDL window
 	SDL_Init(SDL_INIT_VIDEO);
@@ -1072,6 +993,12 @@ int main(int argc, char *argv[]) {
 
 	for (int i = 0; i < boxes.size(); i++) {
 		boxes[i]->calcAABB();
+		if (i % 5 == 1) {
+			boxes[i]->vel = glm::vec3(1, 1, 1);
+		}
+		else{
+			boxes[i]->vel = glm::vec3(0, 0, 0);
+		}
 	}
 
 	int timeCurr = SDL_GetTicks();
@@ -1090,13 +1017,13 @@ int main(int argc, char *argv[]) {
 
 		for (int i = 0; i < boxes.size(); i++) {
 			boxes[i]->mesh->collision = false;
-			if ((i % 5) == 1) {
+			if (i != 0) {
 				glm::vec3 pos = boxes[i]->pos;
-				pos += (float)10*(timeCurr - timeLast)/1000* (glm::vec3(1, 1, 1));
+				pos += (float)10*(timeCurr - timeLast)/1000* (boxes[i]->vel);
 				pos.x = (float)((int)(pos.x * 1000) % ((int)levelSize.x * 1000)) / 1000;
 				pos.y = (float)((int)(pos.y * 1000) % ((int)levelSize.y * 1000)) / 1000;
 				pos.z = (float)((int)(pos.z * 1000) % ((int)levelSize.z * 1000)) / 1000;
-
+			
 				boxes[i]->translateTo(pos);
 			}
 		}
@@ -1116,7 +1043,7 @@ int main(int argc, char *argv[]) {
 			//std::cout << "standard" << std::endl;
 			for (int i = 0; i < boxes.size(); i++) {
 				for (int j = i + 1; j < boxes.size(); j++) {
-					if (intersect(boxes[j]->bound, boxes[i]->bound)) {
+					if (collide(boxes[j]->bound, boxes[i]->bound)) {
 						boxes[i]->mesh->collision = true;
 						boxes[j]->mesh->collision = true;
 						if (i == 0 || j == 0) {
@@ -1163,13 +1090,15 @@ int main(int argc, char *argv[]) {
 		}
 
 		boxes[0]->bound.draw(vp);
-		
+
+		ball.trans = ball.trans*glm::rotate(1.f, glm::vec3(1, 0, 0));
+		ball.draw(vp);
 
 		//Drawing the closest point on the main object to the camera, as a test
 		glDisable(GL_DEPTH_TEST);
 		glEnable(GL_PROGRAM_POINT_SIZE);
 		glPointSize(10);
-		glm::vec3 tempV = boxes[0]->furthestPointInDirection(cameraRot*glm::vec3(0, 0, 1));
+		//tempV = boxes[0]->furthestPointInDirection(cameraRot*glm::vec3(0, 0, 1));
 		//std::cout << tempV.x << ", " << tempV.y << ", " << tempV.z << ", " << std::endl;
 		drawDot(tempV, vp);
 		glEnable(GL_DEPTH_TEST);
@@ -1185,3 +1114,4 @@ int main(int argc, char *argv[]) {
 
 	//	return 0;
 }
+#endif
