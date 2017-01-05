@@ -21,183 +21,80 @@
 #include <random>
 
 #include "collision_utils.h"
+#include "OctTree.h"
 
 Collider *player;
-glm::vec3 playerpos = glm::vec3(0, 15, 0);
+Collider *opponent;
+
+Mesh* mesh;
+OBB *third;
+std::vector<glm::vec3> dots;
+
+glm::vec3 playerpos = glm::vec3(0, 0, 0);
 
 glm::vec3 cameraPos = glm::vec3(0, 0, 10);
 glm::quat cameraRot = glm::quat();
 
-std::vector<Collider *> shapes(4);
+void drawLine(const glm::vec3 pos, glm::vec3 pos2, glm::mat4 &mvp, glm::vec3 colour = glm::vec3(0, 0, 0)) {
+	using namespace std;
 
-void Init_shapes() {
-	glm::mat4 trans;
+	GLuint vao;
+	GLuint vbo;
+	GLuint vbo_index;
+	GLuint program;
+	GLuint attrib_coord;
+	GLuint attrib_index;
+	GLuint uniform_matrix;
 
-	trans = glm::translate(glm::vec3(0, 0, 0));
-	shapes[0] = new AABB(glm::vec3(trans*glm::vec4(-1, -1, -1, 1)), glm::vec3(trans*glm::vec4(1, 1, 1, 1)));
+	GLfloat vertices[] = {
+		pos.x, pos.y, pos.z,
+		pos2.x, pos2.y, pos2.z,
+	};
 
-	trans = trans = glm::translate(glm::vec3(0, 0, 5));
-	shapes[1] = new OBB(glm::vec3(-1, -1, -1), glm::vec3(1, 1, 1), trans);
+	std::vector<GLfloat> skeleton;
 
-	trans = glm::translate(glm::vec3(0, 0, 10));
-	shapes[2] = new Triangle(glm::vec3(trans*glm::vec4(-1, -1, 0, 1)), glm::vec3(trans*glm::vec4(1, -1, 0, 1)), glm::vec3(trans*glm::vec4(0, 1, 0, 1)));
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
 
-	trans = glm::translate(glm::vec3(0, 0, 15));
-	shapes[3] = new Edge(glm::vec3(trans*glm::vec4(-1, -1, -1, 1)), glm::vec3(trans*glm::vec4(1, 1, 1, 1)));
+	glGenBuffers(1, &vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	//swap this bad boy out to test out different shapes
-	trans = glm::translate(playerpos);
-	player = new AABB(glm::vec3(trans*glm::vec4(-1, -1, -1, 1)), glm::vec3(trans*glm::vec4(1, 1, 1, 1)));
+	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs_wireframe.glsl" },
+	{ GL_FRAGMENT_SHADER, "fs_wireframe.glsl" } };
+
+	program = LoadProgram(shaders, 2);
+	glUseProgram(program);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	attrib_coord = getAttrib(program, "coord");
+	glEnableVertexAttribArray(attrib_coord);
+	glVertexAttribPointer(
+		attrib_coord,	//attrib 'index'
+		3,				//pieces of data per index
+		GL_FLOAT,		//type of data
+		GL_FALSE,		//whether to normalize
+		0,				//space b\w data
+		0				//offset from buffer start
+		);
+
+	uniform_matrix = getUniform(program, "mvp");
+
+	GLuint uniform_colour = getUniform(program, "colour");
+	glUniform3fv(uniform_colour, 1, glm::value_ptr(colour));
+
+	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
+
+	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
+
+	glDrawArrays(GL_LINES, 0, 2);
+
+	glDeleteBuffers(1, &vbo);
+	glDeleteVertexArrays(1, &vao);
+	glDeleteProgram(program);
 
 }
-
-void handleKeyUp(const char key) {
-
-}
-void handleKeyDown(const char key) {
-	switch (key) {
-	case 'W':
-	case 'w':player->translate(cameraRot*glm::vec3(0, 0, -1)); playerpos += cameraRot*glm::vec3(0, 0, -1); break;
-	case 'S':
-	case 's':player->translate(cameraRot*glm::vec3(0, 0, 1));  playerpos += cameraRot*glm::vec3(0, 0, 1);  break;
-	case 'A':
-	case 'a':player->translate(cameraRot*glm::vec3(-1, 0, 0)); playerpos += cameraRot*glm::vec3(-1, 0, 0);  break;
-	case 'D':
-	case 'd':player->translate((cameraRot*glm::vec3(1, 0, 0))); playerpos += cameraRot*glm::vec3(1, 0, 0);  break;
-	case 'Q':
-	case 'q':player->translate(cameraRot*glm::vec3(0, -1, 0)); playerpos += cameraRot*glm::vec3(0, -1, 0); break;
-	case 'E':
-	case 'e':player->translate(cameraRot*glm::vec3(0, 1, 0)); playerpos += cameraRot*glm::vec3(0, 1, 0);  break;
-	case 'Z':
-	case 'z': cameraRot = glm::quat(cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot; break;
-	case 'C':
-	case 'c': cameraRot = glm::quat(-cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot; break;
-	case 'R':
-	case 'r': cameraRot = glm::quat(cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;  break;
-	case 'F':
-	case 'f':cameraRot = glm::quat(-cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;  break;
-	}
-}
-
-//mouse movemet
-void handleMotion(int x, int y) {
-	float dx = M_PI / 180 * x / 10;
-	float dy = M_PI / 180 * y / 10;
-
-	cameraRot = glm::quat(-cos(dx / 2), (float)sin(dx / 2)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot;
-	cameraRot = glm::quat(-cos(dy / 2), (float)sin(dy / 2)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;
-
-}
-int main(int argc, char *argv[]) {
-	SDL_Window *window;
-	OBB ball(glm::vec3(-1, -1, -1), glm::vec3(1, 1, 1));
-
-
-	//initializing SDL window
-	SDL_Init(SDL_INIT_VIDEO);
-	window = SDL_CreateWindow("Super Amazing Fun Times", 100, 100, 640, 480, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
-	SDL_SetRelativeMouseMode(SDL_TRUE);
-
-	//initializing Opengl stuff
-	SDL_GL_CreateContext(window);
-	glewInit();
-	glEnable(GL_DEPTH_TEST);
-	//initialize the models
-	Init_shapes();
-
-	int timeCurr = SDL_GetTicks();
-	int timeLast = timeCurr;
-
-	//main loop
-	while (1) {
-		timeLast = timeCurr;
-		timeCurr = SDL_GetTicks();
-
-		//polling for events
-		SDL_Event event;
-		while (SDL_PollEvent(&event)) {
-			if (event.type == SDL_QUIT) return 0;
-			if (event.type == SDL_KEYDOWN) handleKeyDown(event.key.keysym.sym);
-			if (event.type == SDL_KEYUP) handleKeyUp(event.key.keysym.sym);
-			if (event.type == SDL_MOUSEMOTION) handleMotion(event.motion.xrel, event.motion.yrel);
-		}
-		//collision detection
-	//	for (int i = 0; i < shapes.size(); i++) {
-	//		if (collide(player, shapes[i])) {
-	//			std::cout << i << ", ";
-	//		}
-	//	}
-		std::cout << std::endl;
-
-		//the drawing happens here
-		glClearColor(1.0, 1.0, 1.0, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		cameraPos = playerpos + cameraRot*glm::vec3(0, 3, 10);
-//		boxes[0]->rot = cameraRot;
-//		boxes[0]->calcAABB();
-		glm::mat4 view = glm::inverse(glm::mat4_cast(cameraRot))*glm::translate(glm::mat4(1.0), -cameraPos);
-		//glm::mat4 view = glm::lookAt(glm::vec3(0.0, 0.0, -10.0), glm::vec3(0.0, 0.0, 4.0), glm::vec3(0.0, 1.0, 0.0));//I don't necessarily like this
-		glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
-
-		glm::mat4 vp = projection*view;//combination of model, view, projection matrices
-									   //mvp = model;
-
-		glm::mat4 model = glm::mat4(1.0f);//glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale)*glm::mat4_cast(boxes[i]->rot);
-		glm::mat4 mvp = vp*model;
-		for (int i = 0; i < shapes.size(); i++) {
-			glm::mat4(1.0f);//glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale)*glm::mat4_cast(boxes[i]->rot);
-			mvp = vp*model;
-
-			//	boxes[i]->bound.draw(vp);
-
-			shapes[i]->draw(mvp);
-		}
-
-		player->draw(mvp);
-
-		SDL_GL_SwapWindow(window);
-
-	}
-
-	//	return 0;
-}
-
-#if 0
-#include "SDL.h"
-//#include "SDL_keyboard.h"
-//#include "SDL_keycode.h"
-
-#include <vector>
-#include <queue>
-#include <list>
-#include "math.h"
-#include "GL/glew.h"
-#include "glm/glm.hpp"//includes most (if not all?) of GLM library
-#include "glm/gtx/transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
-
-#include "GL/glew.h"
-
-#include "mesh_utils.h"
-#include "shader_utils.h"
-
-#include <iostream>
-
-#include <random>
-
-#include "collision_utils.h"
-
-//forward declarations
-class Actor;
-class AABB;
-class OctTree;
-
-std::vector<Actor*> boxes;
-static int comp;
-glm::vec3 tempV (0, 0, 0);
-
-void drawDot(const glm::vec3 pos, const glm::mat4 &mvp) {
+void drawDot(const glm::vec3 pos, const glm::mat4 &mvp, glm::vec3 colour = glm::vec3(0, 0, 0)) {
 	using namespace std;
 
 	GLuint vao;
@@ -241,6 +138,9 @@ void drawDot(const glm::vec3 pos, const glm::mat4 &mvp) {
 
 	uniform_matrix = getUniform(program, "mvp");
 
+	GLuint uniform_colour = getUniform(program, "colour");
+	glUniform3fv(uniform_colour, 1, glm::value_ptr(colour));
+
 	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
 
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
@@ -253,12 +153,242 @@ void drawDot(const glm::vec3 pos, const glm::mat4 &mvp) {
 
 }
 
+void Init_shapes() {
+	opponent = new OBB(glm::vec3(0, 0, 0), glm::vec3(1, 1, 1));
+	player = new OBB(glm::vec3(0,0,0), glm::vec3(1,1,1));
+
+	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs.glsl" },
+	{ GL_FRAGMENT_SHADER, "fs.glsl" } };
+
+	GLuint prog = LoadProgram(shaders, 2);
+	mesh = new Mesh("ship.obj", prog);
+
+
+	//
+	GLfloat* vertices;
+	int size;
+
+	glBindBuffer(GL_COPY_READ_BUFFER, mesh->vbo_coord);
+	vertices = (GLfloat*)glMapBuffer(GL_COPY_READ_BUFFER, GL_READ_ONLY);
+	glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &size);
+
+	third = new OBB((glm::vec3*)vertices, size / sizeof(glm::vec3));
+
+	glUnmapBuffer(GL_COPY_READ_BUFFER);
+	glBindBuffer(GL_COPY_READ_BUFFER, -1);
+
+//	for (int i = 0; i < 55; i++) {
+//		dots.push_back(glm::vec3(rand() %50 - 50, rand()%100 + 25, rand() %100 - 5));
+//	}
+//	third = new OBB(dots.data(), dots.size());
+}
+
+//does a big old copy, kinda slow?
+std::vector<Entity*> fill_level(const glm::vec3 &levelBound, int num) {
+	std::vector<Entity*> result(num);
+
+	for (int i = 0; i < num; i++) {
+		glm::vec3 min(rand() % (int)levelBound.x, rand() % (int)levelBound.y, rand() % (int)levelBound.z);
+		glm::vec3 max = min + glm::vec3(2, 2, 2);
+
+		result[i] = new Entity(new OBB(min, max));
+	}
+
+	return result;
+}
+
+void handleKeyUp(const char key) {
+
+}
+void handleKeyDown(const char key) {
+	switch (key) {
+	case 'W':
+	case 'w':player->translate(cameraRot*glm::vec3(0, 0, -1)); playerpos += cameraRot*glm::vec3(0, 0, -1); break;
+	case 'S':
+	case 's':player->translate(cameraRot*glm::vec3(0, 0, 1));  playerpos += cameraRot*glm::vec3(0, 0, 1);  break;
+	case 'A':
+	case 'a':player->translate(cameraRot*glm::vec3(-1, 0, 0)); playerpos += cameraRot*glm::vec3(-1, 0, 0);  break;
+	case 'D':
+	case 'd':player->translate((cameraRot*glm::vec3(1, 0, 0))); playerpos += cameraRot*glm::vec3(1, 0, 0);  break;
+	case 'Q':
+	case 'q':player->translate(cameraRot*glm::vec3(0, -1, 0)); playerpos += cameraRot*glm::vec3(0, -1, 0); break;
+	case 'E':
+	case 'e':player->translate(cameraRot*glm::vec3(0, 1, 0)); playerpos += cameraRot*glm::vec3(0, 1, 0);  break;
+	case 'Z':
+	case 'z':player->rotate(glm::quat(cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(0, 1, 0)))); break;
+	case 'C':
+	case 'c':player->rotate(glm::quat(-cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(0, 1, 0)))); break;
+	case 'R':
+	case 'r': player->rotate(glm::quat(cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(1, 0, 0))));  break;
+	case 'F':
+	case 'f': player->rotate(glm::quat(-cos(M_PI / 12), (float)sin(M_PI / 12)*(cameraRot*glm::vec3(1, 0, 0))));  break;
+	}
+}
+
+//mouse movemet
+void handleMotion(int x, int y) {
+	float dx = M_PI / 180 * x / 10;
+	float dy = M_PI / 180 * y / 10;
+
+	cameraRot = glm::quat(-cos(dx / 2), (float)sin(dx / 2)*(cameraRot*glm::vec3(0, 1, 0)))*cameraRot;
+	cameraRot = glm::quat(-cos(dy / 2), (float)sin(dy / 2)*(cameraRot*glm::vec3(1, 0, 0)))*cameraRot;
+
+}
+
+AABB levelRegion(glm::vec3(-256, -256, -256), glm::vec3(256, 256, 256));
+OctTree *collisionTree;
+std::vector<Entity*> Entitys;
+std::vector<CollisionInfo> collisionList;
+int Entitynum = 50;
+int main(int argc, char *argv[]) {
+	SDL_Window *window;
+	OBB ball(glm::vec3(-1, -1, -1), glm::vec3(1, 1, 1));
+
+	//initializing SDL window
+	SDL_Init(SDL_INIT_VIDEO);
+	window = SDL_CreateWindow("Super Amazing Fun Times", 100, 100, 640, 480, SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+	SDL_SetRelativeMouseMode(SDL_TRUE);
+
+	//initializing Opengl stuff
+	SDL_GL_CreateContext(window);
+	glewInit();
+	glEnable(GL_DEPTH_TEST);
+	
+	//initialize the models
+	Init_shapes();
+
+	Entitys = fill_level(levelRegion.max, Entitynum);
+	Entitys.push_back(new Entity(player));
+
+	collisionTree = new OctTree(levelRegion, Entitys);
+	collisionTree->UpdateTree();
+
+	int timeCurr = SDL_GetTicks();
+	int timeLast = timeCurr;
+
+	//main loop
+	glEnable(GL_PROGRAM_POINT_SIZE);
+	glPointSize(10);
+
+	while (1) {
+		timeLast = timeCurr;
+		timeCurr = SDL_GetTicks();
+
+		//polling for events
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_QUIT) return 0;
+			if (event.type == SDL_KEYDOWN) handleKeyDown(event.key.keysym.sym);
+			if (event.type == SDL_KEYUP) handleKeyUp(event.key.keysym.sym);
+			if (event.type == SDL_MOUSEMOTION) handleMotion(event.motion.xrel, event.motion.yrel);
+		}
+
+		//collision detection
+		if (player->intersect(*opponent)) {
+			std::cout << "it collided" << std::endl;
+			opponent->colour = player->colour = glm::vec3(1, 1, 0);
+		}
+		else {
+			opponent->colour = player->colour = glm::vec3(1, 0, 0);
+		}
+
+
+		//process the collision
+		collisionList.clear();
+
+		collisionTree->UpdateTree();
+		collisionTree->CheckCollision(collisionList);
+
+		//the drawing happens here
+		glClearColor(1.0, 1.0, 1.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		cameraPos = playerpos + cameraRot*glm::vec3(0, 3, 10);
+//		boxes[0]->rot = cameraRot;
+//		boxes[0]->calcAABB();
+		glm::mat4 view = glm::inverse(glm::mat4_cast(cameraRot))*glm::translate(glm::mat4(1.0), -cameraPos);
+		//glm::mat4 view = glm::lookAt(glm::vec3(0.0, 0.0, -10.0), glm::vec3(0.0, 0.0, 4.0), glm::vec3(0.0, 1.0, 0.0));//I don't necessarily like this
+		glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
+
+		glm::mat4 vp = projection*view;//combination of model, view, projection matrices
+									   //mvp = model;
+
+		glm::mat4 model = glm::mat4(1.0f);//glm::translate(glm::mat4(1.0f), boxes[i]->pos)*glm::scale(boxes[i]->scale)*glm::mat4_cast(boxes[i]->rot);
+		glm::mat4 mvp = vp*model;
+		
+		std::cout << collisionList.size() << std::endl;
+		for (int i = 0; i < collisionList.size(); i++) {
+			collisionList[i].member[0]->bound.colour = glm::vec3(1, 1, 0);
+			collisionList[i].member[1]->bound.colour = glm::vec3(1, 1, 0);
+			collisionList[i].member[0]->translate(-collisionList[i].collision.normal*collisionList[i].collision.depth);
+			drawDot(collisionList[i].collision.point, vp, glm::vec3(1, 0, 0));
+			drawLine(collisionList[i].collision.point, collisionList[i].collision.point - collisionList[i].collision.normal*collisionList[i].collision.depth, vp, glm::vec3(0, 0, 1));
+		}
+
+		collisionTree->draw(vp);
+
+		opponent->draw(mvp);
+		player->draw(mvp);
+
+		for (int i = 0; i < Entitys.size(); i++) {
+			Entitys[i]->Tick(0.016);
+			Entitys[i]->draw(vp);
+		}
+		//levelRegion.draw(vp);
+
+		third->draw(mvp);
+		mesh->Draw(mvp);
+		for (int i = 0; i < dots.size(); i++) {
+			drawDot(dots[i], mvp);
+		}
+
+		SDL_GL_SwapWindow(window);
+
+	}
+
+	//	return 0;
+}
+
+#if 0
+#include "SDL.h"
+//#include "SDL_keyboard.h"
+//#include "SDL_keycode.h"
+
+#include <vector>
+#include <queue>
+#include <list>
+#include "math.h"
+#include "GL/glew.h"
+#include "glm/glm.hpp"//includes most (if not all?) of GLM library
+#include "glm/gtx/transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
+#include "GL/glew.h"
+
+#include "mesh_utils.h"
+#include "shader_utils.h"
+
+#include <iostream>
+
+#include <random>
+
+#include "collision_utils.h"
+
+//forward declarations
+class Entity;
+class AABB;
+class OctTree;
+
+std::vector<Entity*> boxes;
+static int comp;
+glm::vec3 tempV (0, 0, 0);
+
 //could be a static function of AABB
 
 class OctTree {
 private:
 	AABB region;
-	std::vector<Actor*> objList;
+	std::vector<Entity*> objList;
 
 	OctTree *child[8];
 	OctTree *parent;
@@ -266,34 +396,34 @@ private:
 	static const int minSize = 1;
 	static const int minObj = 10;
 	static const int maxDepth = 20;
-	static std::queue<Actor*> pendingInsertion;
+	static std::queue<Entity*> pendingInsertion;
 	bool treeBuilt = false;
 	bool treeReady = false;
 
 	int depth;
 
-	std::vector<Actor*> collisionList;
+	std::vector<Entity*> collisionList;
 
 private:
 	void BuildTree();
-	void Insert(Actor*);
+	void Insert(Entity*);
 
 	void CheckForMove();
-	bool Reposition(Actor*);
+	bool Reposition(Entity*);
 public:
 	OctTree(AABB region);
-	OctTree(AABB region, std::vector<Actor*> objList);
-	OctTree(AABB region, std::vector<Actor*> objList, OctTree* parent);
+	OctTree(AABB region, std::vector<Entity*> objList);
+	OctTree(AABB region, std::vector<Entity*> objList, OctTree* parent);
 
 	void UpdateTree();
 	void CheckCollision();
-	void CheckCollision(std::vector<Actor*> &incObjList);
+	void CheckCollision(std::vector<Entity*> &incObjList);
 
 	AABB getRegion() { return region; }
 
 	void draw(const glm::mat4 &vp);
 
-	void DrawContainingRegion(Actor* obj, glm::mat4 &vp);
+	void DrawContainingRegion(Entity* obj, glm::mat4 &vp);
 
 };
 
@@ -311,7 +441,7 @@ void OctTree::draw(const glm::mat4 &vp) {
 
 }
 
-class Actor : public IGJKFcns {
+class Entity : public IGJKFcns {
 public:
 	Mesh *mesh;
 	AABB bound;
@@ -414,7 +544,7 @@ public:
 		return result;
 	}
 public:
-	Actor(Mesh *mesh, GLfloat x, GLfloat y, GLfloat z) : mesh(mesh), pos(glm::vec3(x, y, z)) {
+	Entity(Mesh *mesh, GLfloat x, GLfloat y, GLfloat z) : mesh(mesh), pos(glm::vec3(x, y, z)) {
 
 	}
 
@@ -431,14 +561,14 @@ public:
 
 
 //class Declarations~~~~~~~~~~~~~~~~~
-std::queue<Actor*> OctTree::pendingInsertion = std::queue<Actor*>();
+std::queue<Entity*> OctTree::pendingInsertion = std::queue<Entity*>();
 
 OctTree::OctTree(AABB region) :region(region), parent(nullptr), depth(0) {
 }
 
-OctTree::OctTree(AABB region, std::vector<Actor*> objList) : region(region), objList(objList), parent(nullptr), depth(0) {
+OctTree::OctTree(AABB region, std::vector<Entity*> objList) : region(region), objList(objList), parent(nullptr), depth(0) {
 }
-OctTree::OctTree(AABB region, std::vector<Actor*> objList, OctTree* parent) : region(region), objList(objList), parent(parent), depth(parent->depth + 1) {
+OctTree::OctTree(AABB region, std::vector<Entity*> objList, OctTree* parent) : region(region), objList(objList), parent(parent), depth(parent->depth + 1) {
 }
 void OctTree::UpdateTree() {
 
@@ -465,13 +595,13 @@ void OctTree::UpdateTree() {
 }
 
 
-void OctTree::DrawContainingRegion(Actor* obj, glm::mat4 &vp) {
+void OctTree::DrawContainingRegion(Entity* obj, glm::mat4 &vp) {
 	
-	std::vector<Actor*>::iterator it;
-	std::vector<Actor*>::iterator jt;
-	std::vector<Actor*>::iterator id;
-	std::vector<Actor*>::iterator jd;
-	std::vector<Actor*>::iterator kt;
+	std::vector<Entity*>::iterator it;
+	std::vector<Entity*>::iterator jt;
+	std::vector<Entity*>::iterator id;
+	std::vector<Entity*>::iterator jd;
+	std::vector<Entity*>::iterator kt;
 
 	id = objList.end();
 
@@ -490,11 +620,11 @@ void OctTree::DrawContainingRegion(Actor* obj, glm::mat4 &vp) {
 
 void OctTree::CheckForMove() {
 	
-	std::vector<Actor*>::iterator it;
-	std::vector<Actor*>::iterator jt;
-	std::vector<Actor*>::iterator id;
-	std::vector<Actor*>::iterator jd;
-	std::vector<Actor*>::iterator kt;
+	std::vector<Entity*>::iterator it;
+	std::vector<Entity*>::iterator jt;
+	std::vector<Entity*>::iterator id;
+	std::vector<Entity*>::iterator jd;
+	std::vector<Entity*>::iterator kt;
 
 	id = objList.end();
 	it = objList.begin();
@@ -538,7 +668,7 @@ void OctTree::CheckForMove() {
 }
 
 //doing this recursively, but could probably do it iteratively
-bool OctTree::Reposition(Actor* obj) {
+bool OctTree::Reposition(Entity* obj) {
 	bool canCreateChild;
 	bool inPos = false;
 	OctTree* curNode = this;
@@ -572,7 +702,7 @@ bool OctTree::Reposition(Actor* obj) {
 						dropped = true;
 					}
 					else {
-						std::vector<Actor*> octList;
+						std::vector<Entity*> octList;
 						octList.push_back(obj);
 						curNode->child[i] = new OctTree(octant[i], octList, this);
 						curNode->child[i]->BuildTree();
@@ -602,7 +732,7 @@ bool OctTree::Reposition(Actor* obj) {
 
 }
 
-void OctTree::Insert(Actor* obj) {
+void OctTree::Insert(Entity* obj) {
 	std::cout << "Insert: this shouldn't be run\n";
 }
 
@@ -623,7 +753,7 @@ void OctTree::BuildTree() {
 	glm::vec3 center = region.min + dimensions / 2.0f;
 
 	AABB octant[8];
-	std::vector<Actor*> octList[8];
+	std::vector<Entity*> octList[8];
 
 	octant[0] = AABB(region.min, center);
 	octant[1] = AABB(glm::vec3(region.min.x, center.y, region.min.z), glm::vec3(center.x, region.max.y, center.z));
@@ -635,7 +765,7 @@ void OctTree::BuildTree() {
 	octant[7] = AABB(glm::vec3(center.x, center.y, center.z), glm::vec3(region.max.x, region.max.y, region.max.z));
 
 	//for each object in this tree, compare it to each octant; if it fits neatly in one, insert it
-	std::vector<Actor*>::iterator it = objList.begin();
+	std::vector<Entity*>::iterator it = objList.begin();
 	while (it != objList.end()) {
 		bool fit = false;
 
@@ -676,13 +806,13 @@ void OctTree::CheckCollision() {
 	CheckCollision(collisionList);
 }
 
-void OctTree::CheckCollision(std::vector<Actor*> &incObjList) {
+void OctTree::CheckCollision(std::vector<Entity*> &incObjList) {
 
-	static std::vector<Actor*>::iterator it;
-	static std::vector<Actor*>::iterator jt;
-	static std::vector<Actor*>::iterator id;
-	static std::vector<Actor*>::iterator jd;
-	std::vector<Actor*>::iterator kt;
+	static std::vector<Entity*>::iterator it;
+	static std::vector<Entity*>::iterator jt;
+	static std::vector<Entity*>::iterator id;
+	static std::vector<Entity*>::iterator jd;
+	std::vector<Entity*>::iterator kt;
 
 	id = objList.end();
 	jd = incObjList.end();
@@ -739,7 +869,7 @@ void OctTree::CheckCollision(std::vector<Actor*> &incObjList) {
 	}
 
 	//next, add this node's objects to the object list, and send it on to the children nodes
-	for (std::vector<Actor*>::iterator i = objList.begin(); i != objList.end(); i++) {
+	for (std::vector<Entity*>::iterator i = objList.begin(); i != objList.end(); i++) {
 		incObjList.push_back(*i);
 	}
 	//kt = incObjList.begin();
@@ -774,7 +904,7 @@ OctTree *collisionTree;
 
 GLuint prog;
 Mesh *box;
-std::vector<Actor*> boxList;
+std::vector<Entity*> boxList;
 
 void model_Init() {
 	std::vector<GLfloat> vertices = {
@@ -860,8 +990,8 @@ void model_Init() {
 	prog = LoadProgram(shaders, 2);
 	box = new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog);
 
-	boxes.push_back(new Actor(new Mesh("ship.obj", prog), 0, 0, 0));
-	//boxes.push_back(new Actor(new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog), 0, 0, 0));
+	boxes.push_back(new Entity(new Mesh("ship.obj", prog), 0, 0, 0));
+	//boxes.push_back(new Entity(new Mesh(vertices.data(), vertices.size(), indices.data(), indices.size(), prog), 0, 0, 0));
 	boxes[0]->scale = glm::vec3(1, 1, 1);
 	for (int i = 1; i < num; i++) {
 		std::vector<GLfloat> newVerts = vertices;
@@ -919,7 +1049,7 @@ void model_Init() {
 #endif
 
 		box = new Mesh(newVerts.data(), newVerts.size(), indices.data(), indices.size(), prog);
-		boxes.push_back(new Actor(box, rand() % (int)levelSize.x, rand() % (int)levelSize.y, rand() % (int)levelSize.z));
+		boxes.push_back(new Entity(box, rand() % (int)levelSize.x, rand() % (int)levelSize.y, rand() % (int)levelSize.z));
 		boxes[i]->scale = glm::vec3((float)(rand() % 100) / 50, (float)(rand() % 100) / 50, (float)(rand() % 100) / 50);
 		boxes[i]->scale = glm::vec3(1, 1, 1);
 	}
@@ -1063,8 +1193,7 @@ int main(int argc, char *argv[]) {
 
 //			collisionTree = new OctTree(levelregion, boxList);
 
-			collisionTree->UpdateTree();
-			collisionTree->CheckCollision();
+
 		}
 
 		//the drawing happens here

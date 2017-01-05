@@ -96,6 +96,7 @@ Mesh::Mesh(GLuint program) {
 	glBindVertexArray(0);
 
 	vCount = 8;
+	drawShape = GL_TRIANGLES;
 }
 Mesh::Mesh(char *fileName, GLuint prog) {
 	using namespace std;
@@ -133,9 +134,10 @@ Mesh::Mesh(char *fileName, GLuint prog) {
 	glBindVertexArray(0);
 
 	vCount = verticies.size() / 3;
+	drawShape = GL_TRIANGLES;
 }
 
-Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program) {
+Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program, GLuint drawShape = GL_TRIANGLES) {
 	GLuint attrib_vertices;
 
 	this->program = program;
@@ -165,7 +167,9 @@ Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, 
 	glBindVertexArray(0);
 
 	vCount = vNum / 3;
+	this->drawShape = drawShape;
 }
+
 Mesh::~Mesh() {
 	glDeleteBuffers(1, &vbo_coord);
 	glDeleteBuffers(1, &ibo_elements);
@@ -181,7 +185,7 @@ void Mesh::Draw(const glm::mat4 &mvp) {
 
 	int size;  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
 
-	glDrawElements(GL_TRIANGLES, size / sizeof(GLuint), GL_UNSIGNED_INT, NULL);
+	glDrawElements(drawShape, size / sizeof(GLuint), GL_UNSIGNED_INT, NULL);
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -217,6 +221,10 @@ void Mesh::updateProgram(GLuint program) {
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
+}
+
+GLuint Mesh::getProgram() {
+	return program;
 }
 
 void loadObj(std::vector<float> &vertices, std::vector<unsigned int> &elements, char *fileName) {

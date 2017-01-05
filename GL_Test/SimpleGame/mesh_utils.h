@@ -18,6 +18,8 @@ public:
 	GLuint uniform_Matrix;
 	GLuint program;
 
+	GLuint drawShape;
+
 	GLuint uniform_collision;
 
 	//this data is stored in VBO's,
@@ -31,7 +33,7 @@ public:
 	Mesh();
 	Mesh(GLuint prog);
 	Mesh(char * fileName, GLuint prog);//assumes .obj
-	Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program);
+	Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, GLuint program, GLuint drawShape);
 	virtual ~Mesh();
 
 	public:
@@ -41,6 +43,8 @@ public:
 	void updateProgram(GLuint program);//also indices of vertex and element attributes as parameters?
 
 	int collision = false;
+
+	GLuint getProgram();
 };
 
 #endif

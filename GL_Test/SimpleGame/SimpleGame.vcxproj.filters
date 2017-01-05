@@ -24,6 +24,12 @@
     <ClCompile Include="shader_utils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="collision_utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="OctTree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mesh_utils.h">
@@ -32,12 +38,24 @@
     <ClInclude Include="shader_utils.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="collision_utils.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OctTree.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vs.glsl">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="fs.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="fs_wireframe.glsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="vs_wireframe.glsl">
       <Filter>Resource Files</Filter>
     </None>
   </ItemGroup>

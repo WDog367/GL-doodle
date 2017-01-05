@@ -9,12 +9,368 @@
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+#include "OctTree.h"
+
 //stuff for drawing
+#ifdef COLLIDERS_DRAWABLE
+#include "mesh_utils.h"
 #include "GL/glew.h"
 #include "shader_utils.h"
-#include "math.h"
-//Need proper constructors for all of these guys
+#endif
 
+#include "math.h"
+
+//from the Eigen library, the only place it's used is calculating the OBB from a point cloud
+#include <Eigen/Eigenvalues>
+//AABB functions?
+
+//OBB functions
+OBB::OBB(glm::vec3 hw, glm::mat4 &trans) :halfWidths(hw), trans(trans) {
+}
+OBB::OBB(glm::vec3 min, glm::vec3 max) {
+	halfWidths = 0.5f*(max - min);
+	trans = glm::translate(halfWidths + min);
+}
+OBB::OBB(glm::vec3* points, int num) {
+	//create OBB to enscapulate point cloud, find algorithm on internet
+	//an approximate algorithm
+
+	//find the mean position of the set of points
+	glm::vec3 meanPos = glm::vec3(0, 0, 0);
+	for (int i = 0; i < num; i++) {
+		meanPos += points[i];
+	}
+	meanPos = (1.f/num)*meanPos;
+
+	std::cout << "meanPos: " << meanPos.x << ", " << meanPos.y << ", " << meanPos.z << std::endl;
+
+	//create the co-variance matrix
+	//(might make this more automatical)
+	float xVariance = 0, yVariance = 0, zVariance = 0, xyCovariance = 0, xzCovariance = 0, yzCovariance = 0;
+	for (int i = 0; i < num; i++) {
+		xVariance += points[i].x*points[i].x;
+		yVariance += points[i].y*points[i].y;
+		zVariance += points[i].z*points[i].z;
+		xyCovariance += points[i].x*points[i].y;
+		xzCovariance += points[i].x*points[i].z;
+		yzCovariance += points[i].y*points[i].z;
+	}
+	xVariance = xVariance / num - meanPos.x*meanPos.x;
+	yVariance = yVariance / num - meanPos.y*meanPos.y;
+	zVariance = zVariance / num - meanPos.z*meanPos.z;
+	xyCovariance = xyCovariance / num - meanPos.x*meanPos.y;
+	xzCovariance = xzCovariance / num - meanPos.x*meanPos.z;
+	yzCovariance = yzCovariance / num - meanPos.y*meanPos.z;
+	
+	glm::mat3 covarianceMat = {	{xVariance, xyCovariance, xzCovariance}, 
+								{xyCovariance, yVariance, yzCovariance}, 
+								{xzCovariance, yzCovariance, zVariance} 
+								};
+
+	//using Eigen library here, for it's matrix solving usefulness
+	Eigen::Matrix3f covMat; 
+	covMat(0, 0) = xVariance;		covMat(0, 1) = xyCovariance;	covMat(0, 2) = xzCovariance;
+	covMat(1, 0) = xyCovariance;	covMat(1, 1) = yVariance;		covMat(1, 2) = yzCovariance;
+	covMat(2, 0) = xzCovariance;	covMat(2, 1) = yzCovariance;	covMat(2, 2) = zVariance;
+	
+	std::cout << "covmat: " << std::endl << covMat << std::endl;
+
+	Eigen::EigenSolver<Eigen::Matrix3f> es(covMat);
+
+	Eigen::Matrix3f ev = es.eigenvectors().real();
+
+	Eigen::Matrix3f ev_imag = es.eigenvectors().imag();
+
+	std::cout << "imaginary portion is (should be zero): " << std::endl << ev_imag << std::endl;
+
+	for (int i = 0; i < 3; i++) {
+		std::cout << "eigenvector " << i << "is:" << std::endl << ev.col(i) << std::endl;
+	}
+
+	//returning to glm now that we have the eigenVectors
+	glm::mat4 tempTrans;
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			tempTrans[i][j] = ev.col(i)[j];
+		}
+	}
+	glm::mat3 invTrans = glm::inverse(glm::mat3(tempTrans));
+	glm::vec3 min, max;
+	min = max = glm::mat3(invTrans)*points[0];
+	for (int i = 1; i < num; i++) {
+		glm::vec3 temp = glm::mat3(invTrans)*points[i];
+		for (int j = 0; j < 3; j++) {
+			if (temp[j] > max[j]) {
+				max[j] = temp[j];
+			}
+			if (temp[j] < min[j]) {
+				min[j] = temp[j];
+			}
+		}
+	}
+	//assigning halfWidths
+	halfWidths = (max - min)*0.5f;
+
+	glm::vec3 midPoint = min + halfWidths;
+
+
+	midPoint = glm::mat3(tempTrans)*midPoint;
+
+	std::cout << "midpoint: " << midPoint.x << ", " << midPoint.y << ", " << midPoint.z << std::endl;
+
+	tempTrans[3] = glm::vec4(midPoint, 1.0f);
+
+	//assigning trans
+	trans = tempTrans;
+	//QED it's done
+}
+
+void OBB::getVertices(glm::vec3 verts[8]) {
+	verts[0] = glm::vec3(trans*glm::vec4(-halfWidths.x, -halfWidths.y, -halfWidths.z, 1.0));
+	verts[1] = glm::vec3(trans*glm::vec4(-halfWidths.x, halfWidths.y, -halfWidths.z, 1.0));
+	verts[2] = glm::vec3(trans*glm::vec4(halfWidths.x, halfWidths.y, -halfWidths.z, 1.0));
+	verts[3] = glm::vec3(trans*glm::vec4(halfWidths.x, -halfWidths.y, -halfWidths.z, 1.0));
+	verts[4] = glm::vec3(trans*glm::vec4(-halfWidths.x, -halfWidths.y, halfWidths.z, 1.0));
+	verts[5] = glm::vec3(trans*glm::vec4(-halfWidths.x, halfWidths.y, halfWidths.z, 1.0));
+	verts[6] = glm::vec3(trans*glm::vec4(halfWidths.x, halfWidths.y, halfWidths.z, 1.0));
+	verts[7] = glm::vec3(trans*glm::vec4(halfWidths.x, -halfWidths.y, halfWidths.z, 1.0));
+}
+
+//generic transformations
+void OBB::translate(glm::vec3 v) {
+	//keep translations on the right side
+	trans = glm::translate(v)*trans;
+}
+void OBB::rotate(glm::quat q) {
+	//not sure how I feel about this one
+		//keep rotations on the left side
+	trans = trans*glm::mat4_cast(q);
+}
+void OBB::scale(glm::vec3 s) {
+	//keep scaling on the right side; shouldn't fight with rotation,
+	trans = glm::scale(s)*trans;
+}
+
+//getting bounds, for use in coarse collision
+
+AABB OBB::getBounds() {
+	glm::vec3 x(1, 0, 0);
+	glm::vec3 y(0, 1, 0);
+	glm::vec3 z(0, 0, 1);
+
+	//could be optimized a bit, rather than just calling furthestpointindirection
+	glm::vec3 max(furthestPointInDirection(x).x, furthestPointInDirection(y).y, furthestPointInDirection(z).z);
+	glm::vec3 min(furthestPointInDirection(-x).x, furthestPointInDirection(-y).y, furthestPointInDirection(-z).z);
+
+	return AABB(min, max);
+}
+AABB OBB::getBounds(glm::mat4 &model) {
+	//just use the other one for now
+	return AABB(glm::vec3(0,0,0), glm::vec3(1,1,1));
+}
+
+//for GJK algorithm, for convex collisions
+glm::vec3 OBB::furthestPointInDirection(glm::vec3 dir) {
+	//convert the direction into the local space of this box
+	glm::vec4  newDir = glm::vec4(glm::inverse(glm::mat3(trans))*dir, 1.0);
+
+	//"clamp" the direction to the box
+	for (int i = 0; i < 3; i++) {
+		newDir[i] = newDir[i] > 0 ? halfWidths[i] : -halfWidths[i];
+	}
+
+	return glm::vec3(trans*newDir);
+}
+
+//functions for the double dispatch
+collideResult OBB::intersect(Collider &a) {
+	return a.intersect(*this);
+}
+collideResult OBB::intersect(Sphere &a) {
+	return false;
+}
+collideResult OBB::intersect(OBB &a) {
+	return ::intersect(a, *this);
+}
+collideResult OBB::intersect(Capsule &a) {
+	return false;
+}
+collideResult OBB::intersect(ConvexHull &a) {
+	return false;
+}
+
+#ifdef COLLIDERS_DRAWABLE
+
+bool OBB::isdrawableinit = false;
+Mesh * OBB::drawable = nullptr;
+
+void OBB::init_drawable() {
+	if (!isdrawableinit) {
+		GLfloat vertices[] = {
+			-1, -1, -1,
+			-1, 1, -1,
+			1, 1, -1,
+			1, -1, -1,
+			-1, -1, 1,
+			-1, 1, 1,
+			1, 1, 1,
+			1, -1, 1,
+		};
+		GLuint elements[] = {
+			0, 1,
+			1, 2,
+			2, 3,
+			3, 0,
+
+			4, 5,
+			5, 6,
+			6, 7,
+			7, 4,
+
+			0, 4,
+			1, 5,
+			2, 6,
+			3, 7,
+		};
+
+		struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs_wireframe.glsl" },{ GL_FRAGMENT_SHADER, "fs_wireframe.glsl" } };
+		GLuint program = LoadProgram(shaders, 2);
+
+		drawable = new Mesh(vertices, 24, elements, 24, program, GL_LINES);
+
+		isdrawableinit = true;
+	}
+}
+
+void OBB::draw(const glm::mat4 &vp) {
+	init_drawable();
+	
+	GLuint program = drawable->getProgram();
+	glUseProgram(program);
+
+	//set the colour value of the program (probably need a better system to do this in the mesh)
+	GLuint uniform_colour = getUniform(program, "colour");
+	glUniform3fv(uniform_colour, 1, glm::value_ptr(colour));
+
+	drawable->Draw(vp*trans*glm::scale(halfWidths));
+}
+#endif
+
+//actual collision
+
+collideResult intersect(OBB &a, OBB &b) {
+	collideResult result;
+	
+	glm::vec3 axes[15];
+	int num_axes;
+
+	glm::vec3 a_vert[8];
+	glm::vec3 b_vert[8];
+
+	glm::vec3 mvt;
+	glm::vec3 point;
+
+	//Setup the world coord vertices
+	a.getVertices(a_vert);
+	b.getVertices(b_vert);
+
+	//Setup the axes to test against: all of the face normals, plus their cross products
+	for (int i = 0; i < 3; i++) {
+		axes[i] = glm::normalize(glm::mat3(a.trans)[i]);//should make sure that this does work the way I think it does //(also, may need to normalize them)
+		//std::cout << i << ": " << axes[i].x << ", " << axes[i].y << ", " << axes[i].z << std::endl;
+	}
+	for (int i = 0; i < 3; i++) {
+		axes[i + 3] = glm::normalize(glm::mat3(b.trans)[i]);
+		//std::cout << i + 3 << ": " << axes[i + 3].x << ", " << axes[i + 3].y << ", " << axes[i + 3].z << std::endl;
+	}
+	num_axes = 6;
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			axes[num_axes] = glm::cross(axes[i], axes[j]);
+			if (axes[num_axes].x != 0 || axes[num_axes].y != 0 || axes[num_axes].z != 0) {
+				//could just not add it if length is zero, but refraining from normalization is fine
+				axes[num_axes] = glm::normalize(axes[num_axes]);
+				num_axes++;
+			}
+			//std::cout << 6 + 3 * i + j << ": " << axes[6 + 3 * i + j].x << ", " << axes[6 + 3 * i + j].y << ", " << axes[6 + 3 * i + j].z << std::endl;
+		}
+	}
+
+	result.isIntersect = SAT_collide(mvt, point, axes, a_vert, b_vert, num_axes, 8, 8);
+	result.depth = mvt.length();
+	result.normal = mvt/result.depth;
+	result.point = point;
+	
+	return result;
+}
+
+//helper functions
+void ProjectOntoAxis(float &min, int &min_ind, float &max, int &max_ind, const glm::vec3 &axis, const glm::vec3 *vert, int num) {
+	min = max = glm::dot(vert[0], axis);
+	min_ind = max_ind = 0;
+	for (int j = 1; j < num; j++) {
+		float temp = glm::dot(vert[j], axis);
+		if (temp < min) {
+			min = temp;
+			min_ind = j;
+		}
+		if (temp > max) {
+			max = temp;
+			max_ind = j;
+		}
+	}
+}
+
+bool SAT_collide(glm::vec3 &mtv, glm::vec3 &impactpoint, const glm::vec3 *axes, const glm::vec3 *a_vert, const glm::vec3 *b_vert, int axes_num, int a_num, int b_num) {
+	//When projecting onto the axis, we only really need to store the min and max coords,
+	//since they just make a 1-d line
+	float a_min, a_max;
+	float b_min, b_max;
+	int a_min_i, a_max_i;
+	int b_min_i, b_max_i;
+
+	mtv = glm::vec3(0, 0, 0);
+	float mtv_length = -1;
+
+	for (int i = 0; i < axes_num; i++) {
+
+		ProjectOntoAxis(a_min, a_min_i, a_max, a_max_i, axes[i], a_vert, a_num);
+		ProjectOntoAxis(b_min, b_min_i, b_max, b_max_i, axes[i], b_vert, b_num);
+
+
+		//testing for overlap
+		//a---------------a
+		//          b----------------------b
+		if (a_max >= b_min && a_min <= b_max) {
+			//there is an overlap on this axis
+			float overlap;
+			glm::vec3 nearestpoint;
+
+			if (abs(a_max - b_min) < abs(a_min - b_max)) {
+				overlap = a_max - b_min;
+				nearestpoint = b_vert[b_min_i];
+			}
+			else {
+				overlap = a_min - b_max;
+				nearestpoint = b_vert[b_max_i];
+			}
+
+			if (abs(overlap) < mtv_length || mtv_length < 0) {
+				mtv_length = abs(overlap);
+				mtv = overlap*axes[i];
+
+				impactpoint = mtv + nearestpoint;
+			}
+		}
+		else {
+			return false;// no overlap, therefor, we have a separating plane
+		}
+
+	}
+
+	return true;
+}
+#if 0
 //Sphere
 //##########################################################
 
@@ -114,16 +470,16 @@ void Edge::translate(glm::vec3 diff) {
 //##########################################################
 //copies points over. should store adjacency info?
 //could be better in many ways
-CV_Hull::CV_Hull(glm::vec3* inpoints, int num, const glm::mat4 &trans) :num(num), trans(trans) {
+ConvexHull::ConvexHull(glm::vec3* inpoints, int num, const glm::mat4 &trans) :num(num), trans(trans) {
 	points = (glm::vec3*)malloc(num*sizeof(glm::vec3));
 	memcpy(points, inpoints, num*sizeof(glm::vec3));
 }
 
-CV_Hull::~CV_Hull() {
+ConvexHull::~ConvexHull() {
 	delete points;
 }
 
-glm::vec3 CV_Hull::furthestPointInDirection(glm::vec3 originaldir) {
+glm::vec3 ConvexHull::furthestPointInDirection(glm::vec3 originaldir) {
 	glm::vec3 result;
 	float length;
 	
@@ -154,7 +510,7 @@ glm::vec3 CV_Hull::furthestPointInDirection(glm::vec3 originaldir) {
 	return result;
 }
 
-void CV_Hull::translate(glm::vec3 diff) {
+void ConvexHull::translate(glm::vec3 diff) {
 	trans = trans*glm::translate(diff);
 }
 //##############################################################################################################
@@ -419,7 +775,7 @@ bool collision_GJK(IGJKFcns* a, IGJKFcns* b, glm::vec3 *coll_point, glm::vec3 *c
 
 //made w\ this as reference: http://hacktank.net/blog/?p=119
 //used to find the normal and depths
-bool collision_EPA(IGJKFcns* a, IGJKFcns* b, std::vector<SupportPoint> sim, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth) {
+void collision_EPA(IGJKFcns* a, IGJKFcns* b, std::vector<SupportPoint> sim, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth) {
 	// list because we will be removing and adding a lot
 	std::list<SP_Triangle> lst_triangles;
 	std::list<SP_Edge> lst_edges;
@@ -644,8 +1000,8 @@ bool collide(const Sphere &s, const OBB &b) {
 
 //Sphere vs. Convex Hull
 //(is just GJK, just need a findfurthestpoint implementation for the sphere, which is easy
-bool collide(const Sphere &s, const CV_Hull &h) {
-	collision_GJK((IGJKFcns*)&s, (IGJKFcns*)&h);
+bool collide(const Sphere &s, const ConvexHull &h) {
+	return collision_GJK((IGJKFcns*)&s, (IGJKFcns*)&h);
 }
 
 //Rays vs. Things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -730,8 +1086,8 @@ bool collide(const AABB &a, const Triangle &b) {
 }
 
 //Plane vs. Convex Hull
-bool collide(const CV_Hull &a, const Triangle &b) {
-	return collide(a, CV_Hull((glm::vec3*)b.points, 3, glm::mat4(1.0)));
+bool collide(const ConvexHull &a, const Triangle &b) {
+	return collide(a, ConvexHull((glm::vec3*)b.points, 3, glm::mat4(1.0)));
 }
 
 //AABB things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -752,10 +1108,10 @@ bool collide(const OBB &a, const AABB &b) {
 }
 
 //AABB vs. Convex Hull
-bool collide(const CV_Hull &a, const AABB &b) {
+bool collide(const ConvexHull &a, const AABB &b) {
 	glm::vec3 verts[8];
 	b.getVerticies(verts);
-	return collide(a, CV_Hull(verts, 8, glm::mat4(1.0)));
+	return collide(a, ConvexHull(verts, 8, glm::mat4(1.0)));
 }
 //OBB things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -790,13 +1146,13 @@ bool collide(const OBB &a, const OBB &b) {
 }
 
 //OBB vs. Convex Hull
-bool collide(const CV_Hull &a, const OBB &b) {
+bool collide(const ConvexHull &a, const OBB &b) {
 	glm::vec3 verts[8];
 	b.getVerticies(verts);
-	return collide(a, CV_Hull((glm::vec3*)verts, 8, b.trans));
+	return collide(a, ConvexHull((glm::vec3*)verts, 8, b.trans));
 }
 
-bool collide(const CV_Hull &a, const CV_Hull &b) {
+bool collide(const ConvexHull &a, const ConvexHull &b) {
 	return collision_GJK((IGJKFcns*)&a, (IGJKFcns*)&b);
 }
 
@@ -1231,7 +1587,7 @@ void Edge::draw(const glm::mat4 &vp) {
 }
 
 //prolly don't ever use this one, until it's actually efficient
-void CV_Hull::draw(const glm::mat4 &vp) {
+void ConvexHull::draw(const glm::mat4 &vp) {
 	using namespace std;
 
 	GLuint vao;
@@ -1305,3 +1661,260 @@ void CV_Hull::draw(const glm::mat4 &vp) {
 	glDeleteVertexArrays(1, &vao);
 	glDeleteProgram(program);
 }
+
+//Double dispatch stuff
+collideResult Sphere::intersect(Collidable &a) {
+	return a.intersect(*this);
+}
+collideResult Sphere::intersect(Sphere &a) {
+	return collide(*this, a);
+}
+collideResult Sphere::intersect(OBB &a) {
+	return collide(*this, a);
+}
+collideResult Sphere::intersect(ConvexHull &a) {
+	return collide(*this, a);
+}
+collideResult Sphere::intersect(Capsule &a) {
+	return collide(a, *this);
+}
+
+collideResult OBB::intersect(Collidable &a) {
+	return a.intersect(*this);
+}
+collideResult OBB::intersect(Sphere &a) {
+	return collide(a, *this);
+}
+collideResult OBB::intersect(OBB &a) {
+	return collide(*this, a);
+}
+collideResult OBB::intersect(ConvexHull &a) {
+	return collide(a, *this);
+}
+collideResult OBB::intersect(Capsule &a) {
+	return collide(a, *this);
+}
+
+collideResult ConvexHull::intersect(Collidable &a) {
+	return a.intersect(*this);
+}
+collideResult ConvexHull::intersect(Sphere &a) {
+	return collide(a, *this);
+}
+collideResult ConvexHull::intersect(OBB &a) {
+	return collide(*this, a);
+}
+collideResult ConvexHull::intersect(ConvexHull &a) {
+	return collide(a, *this);
+}
+collideResult ConvexHull::intersect(Capsule &a) {
+	return collide(a, *this);
+}
+
+collideResult Capsule::intersect(Collidable &a) {
+	return a.intersect(*this);
+}
+collideResult Capsule::intersect(Sphere &a) {
+	return collide(*this, a);
+}
+collideResult Capsule::intersect(OBB &a) {
+	return collide(*this, a);
+}
+collideResult Capsule::intersect(ConvexHull &a) {
+	return collide(*this, a);
+}
+collideResult Capsule::intersect(Capsule &a) {
+	return collide(*this, a);
+}
+
+///CAPSULE AFTERTHOUGHR########################################################################
+
+
+Capsule::Capsule(glm::vec3 a, glm::vec3 b, GLfloat radius) : radius(radius) {
+	this->points[1] = b;
+	this->points[0] = a;
+}
+Capsule::Capsule(GLfloat length, GLfloat radius) : radius(radius) {
+	points[0] = glm::vec3(0, -length / 2, 0);
+	points[1] = glm::vec3(0, length / 2, 0);
+}
+
+void Capsule::draw(const glm::mat4 &vp) {
+	//I'm so sorry
+	Sphere *balls[2];
+
+	balls[0] = new Sphere(points[0], radius);
+	balls[1] = new Sphere(points[1], radius);
+
+	balls[0]->draw(vp);
+	balls[1]->draw(vp);
+
+	delete balls[0];
+	delete balls[1];
+}
+
+void Capsule::translate(glm::vec3 diff) {
+	points[0] += diff;
+	points[1] += diff;
+}
+
+glm::vec3 Capsule::furthestPointInDirection(glm::vec3 dir) {
+	glm::vec3 capDir = points[1] - points[0];
+
+	float res = glm::dot(capDir, dir) == 0;
+
+	if (res > 0) {
+		points[1] + radius*(glm::normalize(dir));
+	}
+	else {
+		return points[0] + radius*(glm::normalize(dir));
+	}
+}
+
+//should clean all this up
+bool collide(const Capsule &c_a, const Capsule &c_b)
+{
+	glm::vec3   u = c_a.points[1] - c_a.points[0];
+	glm::vec3   v = c_b.points[1] - c_b.points[0];
+	glm::vec3   w = c_a.points[0] - c_b.points[0];
+	float    a = glm::dot(u, u);         // always >= 0
+	float    b = glm::dot(u, v);
+	float    c = glm::dot(v, v);         // always >= 0
+	float    d = glm::dot(u, w);
+	float    e = glm::dot(v, w);
+	float    D = a*c - b*b;        // always >= 0
+	float    sc, tc;
+
+	// compute the line parameters of the two closest points
+	if (D < 0.00000001) {          // the lines are almost parallel
+		sc = 0.0;
+		tc = (b>c ? d / b : e / c);    // use the largest denominator
+	}
+	else {
+		sc = (b*e - c*d) / D;
+		tc = (a*e - b*d) / D;
+	}
+
+	glm::vec3 p_a;
+	if (sc < 0) {
+		p_a = c_a.points[0];
+	}
+	else if (sc > 1) {
+		p_a = c_a.points[1];
+	}
+	else {
+		p_a = c_a.points[0] + sc*u;
+	}
+
+	glm::vec3 p_b;
+
+	if (tc < 0) {
+		p_b = c_b.points[0];
+	}
+	else if (tc > 1) {
+		p_b = c_b.points[1];
+	}
+	else {
+		p_b = c_b.points[0] + tc*v;
+	}
+
+
+	glm::vec3 dist = p_a - p_b;
+
+	float rad = c_a.radius + c_b.radius;
+
+	return (dist.x*dist.x + dist.y*dist.y + dist.z*dist.z) < (rad)*(rad);
+}
+bool collide(const Capsule &e, const Sphere &s) {
+	//maybe should store these instead of calcing each time?
+	glm::vec3 norm = glm::normalize(e.points[1] - e.points[0]);
+	float length = glm::length(e.points[1] - e.points[0]);
+
+	float c = glm::dot((s.loc - e.points[0]), norm);//the distance to nearest point on edge, from point[0] of the line
+	glm::vec3 p;
+
+	if (c < 0) {
+		//the closest point to the circle doesn't lie within the edge
+		//still, check if nearest edge points are in it
+		p = e.points[0];
+	}
+	else if (c > length) {
+		//same as above
+		p = e.points[1];
+	}
+	else {
+		p = c*norm + e.points[0];//the nearest point on the edge
+	}
+
+	glm::vec3 d = s.loc - p;//the vec b/w sphere and nearest point
+
+	float rad = s.rad + e.radius;
+
+	return (d.x*d.x + d.y*d.y + d.z*d.z) < (rad)*(rad);
+}
+bool collide(const Capsule &a, const OBB &b) {
+	glm::vec3 axes[6];
+
+	glm::vec3 b_vert[8];
+
+	//Setup the world coord vertices
+	b.getVerticies(b_vert);
+
+	glm::vec3 norm = glm::normalize(a.points[1] - a.points[0]);
+
+	//Setup the axes to test against: all of the face normals, plus their cross products
+	for (int i = 0; i < 3; i++) {
+		axes[i] = glm::mat3(b.trans)[i];
+	}
+	for (int i = 0; i < 3; i++) {
+		axes[i + 3] = glm::cross(axes[i], norm);
+	}
+
+	float a_min, a_max;
+	float b_min, b_max;
+
+	int axes_num = 6;
+	int b_num = 8;
+
+	for (int i = 0; i < axes_num; i++) {
+
+		//projecting A onto the axis
+		a_min = glm::dot(a.points[0], axes[i]);
+		a_max = glm::dot(a.points[1], axes[i]);
+
+		if (a_min > a_max) {
+			float temp = a_min;
+			a_min = a_max;
+			a_max = temp;
+		}
+		a_min -= a.radius;
+		a_max += a.radius;
+
+		//projecting B onto the axis
+		b_min = b_max = glm::dot(b_vert[0], axes[i]);
+		for (int j = 1; j < b_num; j++) {
+			float temp = glm::dot(b_vert[j], axes[i]);
+			if (temp < b_min) {
+				b_min = temp;
+			}
+			if (temp > b_max) {
+				b_max = temp;
+			}
+		}
+
+		//testing for overlap
+		if (a_max > b_min && a_min < b_max) {
+			continue;//dumb and pointless
+		}
+		else {
+			return false;// no overlap, therefor, we have a separating plane
+		}
+
+	}
+
+	return true;
+}
+bool collide(const Capsule &a, const ConvexHull &b) {
+	return collision_GJK((IGJKFcns*)&a, (IGJKFcns*)&b);
+}
+#endif

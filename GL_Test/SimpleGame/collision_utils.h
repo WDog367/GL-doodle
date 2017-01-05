@@ -10,17 +10,115 @@
 //##############################################################################################################
 //Classes and types ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //##############################################################################################################
+#define COLLIDERS_DRAWABLE
 
-//Used to convert collider
-enum collider_Type {
-	SPHERE_TYPE,
-	OBB_TYPE,
-	AABB_TYPE,
-	TRY_TYPE,
-	EDGE_TYPE,
-	CVHULL_TYPE,
-	NULL_TYPE,
+class Sphere;
+class OBB;
+class Capsule;
+class ConvexHull;
+class AABB;
+
+struct collideResult{
+	bool isIntersect;
+	glm::vec3 normal;
+	float depth;
+	glm::vec3 point;
+
+	collideResult() {}
+
+	collideResult(bool thing) {
+		isIntersect = thing;
+	}
+
+	operator bool() const
+	{
+		return isIntersect;
+	}
+
 };
+
+class Collider {
+public:
+	//generic transformations
+	virtual void translate(glm::vec3) = 0;
+	virtual void rotate(glm::quat) = 0;
+	virtual void scale(glm::vec3) = 0;
+
+	//getting bounds, for use in coarse collision
+	virtual AABB getBounds() = 0;
+	virtual AABB getBounds(glm::mat4 &model) =0;
+
+	//for GJK algorithm, for convex collisions
+	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir) = 0;
+
+	//functions for the double dispatch
+	virtual collideResult intersect(Collider &a) = 0;
+	virtual collideResult intersect(Sphere &a) = 0;
+	virtual collideResult intersect(OBB &a) = 0;
+	virtual collideResult intersect(Capsule &a) = 0;
+	virtual collideResult intersect(ConvexHull &a) = 0;
+
+#ifdef COLLIDERS_DRAWABLE
+	glm::vec3 colour = glm::vec3(0, 1, 0);
+
+	virtual void draw(const glm::mat4 &vp) = 0;
+#endif
+};
+
+class OBB : public Collider{
+public:
+	//Oriented bounding box stored as a set of half widths, and a transformation
+	glm::mat4 trans;
+	glm::vec3 halfWidths;
+	
+public:
+	OBB(glm::vec3 HalfWidths, glm::mat4 &trans);
+	OBB(glm::vec3 min, glm::vec3 max);
+	OBB(glm::vec3* points, int num);
+
+	void getVertices(glm::vec3 verts[8]);
+
+public:
+
+	//generic transformations
+	virtual void translate(glm::vec3);
+	virtual void rotate(glm::quat);
+	virtual void scale(glm::vec3);
+
+	//getting bounds, for use in coarse collision
+	virtual AABB getBounds();
+	virtual AABB getBounds(glm::mat4 &model);
+
+	//for GJK algorithm, for convex collisions
+	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
+
+	//functions for the double dispatch
+	virtual collideResult intersect(Collider &a);
+	virtual collideResult intersect(Sphere &a);
+	virtual collideResult intersect(OBB &a);
+	virtual collideResult intersect(Capsule &a);
+	virtual collideResult intersect(ConvexHull &a);
+
+#ifdef COLLIDERS_DRAWABLE
+	static void init_drawable();
+	static bool isdrawableinit;
+	static class Mesh* drawable;
+	virtual void draw(const glm::mat4 &vp);
+#endif
+};
+
+//actual collision functions
+collideResult intersect(OBB &a, OBB &b);
+
+//helper functions
+//Does SAT (Seperating Axis Theorem) to check for collision using the axes and vertices provided. 
+//i.e. it projects each shape onto each axis and checks for overlap
+//This just leaves setting up the axes and verts in the collision fcns, which is a bit less code
+bool SAT_collide(glm::vec3 &mtv, glm::vec3 &impactpoint, const glm::vec3 *axes, const glm::vec3 *a_vert, const glm::vec3 *b_vert, int axes_num, int a_num, int b_num);
+#if 0
+//classes which aren't rellay colliders
+//class AABB;//will only be used in the course pass, compared against other AABBs
+//class Triangle; //not 100% sure about this one, as it may be useful for polygon soups, but I won't deal with that yet
 
 //interface for the furthestPointInDirection Function.
 class IGJKFcns {
@@ -35,20 +133,32 @@ public:
 class Collider {
 protected:
 	const collider_Type type;
-	glm::vec3 colour = glm::vec3(0,1,0);
+	glm::vec3 colour = glm::vec3(0, 1, 0);
 	//could make the helper functions I have static functions of this
 
 public:
-	Collider::Collider(): type(NULL_TYPE) {}
+	Collider::Collider() : type(NULL_TYPE) {}
 
-	virtual virtual void draw(const glm::mat4 &vp)=0;
+	virtual void draw(const glm::mat4 &vp) = 0;
 
-	virtual void translate(glm::vec3) =0;
+	virtual void translate(glm::vec3) = 0;
+};
+
+//virtual functions used for the double dispatch
+//perhaps could do it as a manual dispatch table? probably not
+//primitives doing the whole "collide with each other" thing:
+class Collidable : public Collider{
+public:
+	virtual collideResult intersect(Collidable &a)=0;
+	virtual collideResult intersect(Sphere &a)=0;
+	virtual collideResult intersect(OBB &a) = 0;
+	virtual collideResult intersect(Capsule &a) =0;
+	virtual collideResult intersect(ConvexHull &a)=0;
 };
 
 //Sphere
 //##########################################################
-class Sphere : public Collider, public IGJKFcns {
+class Sphere : public IGJKFcns, public Collidable {
 public:
 	glm::vec3 loc;
 	float rad;
@@ -62,12 +172,20 @@ public:
 	virtual void draw(const glm::mat4 &vp);
 
 	virtual void translate(glm::vec3);
+
+	//functions for the double dispatch
+public:
+	virtual collideResult intersect(Collidable &a) ;
+	virtual collideResult intersect(Sphere &a) ;
+	virtual collideResult intersect(OBB &a) ;
+	virtual collideResult intersect(Capsule &a) ;
+	virtual collideResult intersect(ConvexHull &a) ;
 };
 
 //Oriented Bounding Box
 //##########################################################
 //should it store the world coordinates? maybe?
-class OBB : public Collider {
+class OBB : public Collidable {
 
 public:
 	glm::vec3 max;
@@ -85,6 +203,14 @@ public:
 	virtual void draw(const glm::mat4 &vp);
 
 	virtual void translate(glm::vec3);
+
+	//functions for the double dispatch
+public:
+	virtual collideResult intersect(Collidable &a) ;
+	virtual collideResult intersect(Sphere &a) ;
+	virtual collideResult intersect(OBB &a) ;
+	virtual collideResult intersect(Capsule &a) ;
+	virtual collideResult intersect(ConvexHull &a) ;
 };
 
 //Axis Aligned Bounding Box
@@ -141,7 +267,7 @@ public:
 };
 
 //##########################################################
-class CV_Hull : public Collider, public IGJKFcns {
+class ConvexHull : public IGJKFcns, public Collidable {
 public:
 	glm::vec3 *points;
 	int num;
@@ -149,9 +275,9 @@ public:
 public:
 	//copies points over. should store adjacency info?
 	//could be better in many ways
-	CV_Hull(glm::vec3* inpoints, int num, const glm::mat4 &trans);
+	ConvexHull(glm::vec3* inpoints, int num, const glm::mat4 &trans);
 
-	~CV_Hull();
+	virtual ~ConvexHull();
 	//GJK necessary interface
 	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
 	//should also store adjacency information, it'll be usefull for getFurthestPoint()
@@ -161,8 +287,41 @@ public:
 
 	virtual void translate(glm::vec3);
 
+	//functions for the double dispatch
+public:
+	virtual collideResult intersect(Collidable &a) ;
+	virtual collideResult intersect(Sphere &a) ;
+	virtual collideResult intersect(OBB &a) ;
+	virtual collideResult intersect(Capsule &a) ;
+	virtual collideResult intersect(ConvexHull &a) ;
+
 };
 
+class Capsule : public Collidable, public IGJKFcns {
+public:
+	glm::vec3 points[2];
+	float radius;
+public:
+	Capsule(glm::vec3 a, glm::vec3 b, float radius);
+	Capsule(float length, float radius);
+
+//	virtual ~Capsule();
+
+	virtual void draw(const glm::mat4 &vp);
+
+	//transformations
+	virtual void translate(glm::vec3);
+
+public:
+	virtual collideResult intersect(Collidable &a);
+	virtual collideResult intersect(Sphere &a);
+	virtual collideResult intersect(OBB &a);
+	virtual collideResult intersect(Capsule &a);
+	virtual collideResult intersect(ConvexHull &a);
+
+public:
+	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
+};
 //##############################################################################################################
 //Helper functions used in the collision Tests~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //##############################################################################################################
@@ -214,7 +373,7 @@ void barycentric(const glm::vec3 &p, const glm::vec3 &a, const glm::vec3 &b, con
 //#########################################################
 //GJK stuff;
 bool collision_GJK(IGJKFcns* a, IGJKFcns* b, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth);
-bool collision_EPA(IGJKFcns* a, IGJKFcns* b, std::vector<SupportPoint> sim, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth);
+void collision_EPA(IGJKFcns* a, IGJKFcns* b, std::vector<SupportPoint> sim, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth);
 
 bool collision_GJK(IGJKFcns* a, IGJKFcns* b);
 
@@ -223,79 +382,36 @@ bool collision_GJK(IGJKFcns* a, IGJKFcns* b);
 //for now, just return true/false; add collision info after
 //##############################################################################################################
 
+//make all of these static functions of the collider class, so we can not bother with everything being public
 
-//Sphere Functions~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//Functions: Sphere vs. Sphere
+double SquaredDistPointAABB(const glm::vec3 & p, const AABB & aabb);
 
 bool collide(const Sphere &a, const Sphere& b);
-
-//Sphere vs. edge
 bool collide(const Sphere &s, const Edge& e);
-
-//Sphere vs. triangle
 bool collide(const Sphere &s, const Triangle &t);
-
-//Sphere vs. AABB
-double SquaredDistPointAABB(const glm::vec3 & p, const AABB & aabb);
 bool collide(const Sphere &s, const AABB &b);
-
-//Sphere vs. OBB
 bool collide(const Sphere &s, const OBB &b);
+bool collide(const Sphere &s, const ConvexHull &h);
 
-//Sphere vs. Convex Hull
-//(is just GJK, just need a findfurthestpoint implementation for the sphere, which is easy
-bool collide(const Sphere &s, const CV_Hull &h);
+bool collide(const ConvexHull &a, const OBB &b);
+bool collide(const ConvexHull &a, const AABB &b);
+bool collide(const ConvexHull &a, const Triangle &b);
+bool collide(const ConvexHull &a, const ConvexHull &b);
 
-//Rays vs. Things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-//Ray vs. Plane
-bool collide(const Edge &e, const Triangle &t);
-
-//Ray vs. Ray //Really? this will almost never be true
-
-//Ray vs. OBB (SAT)
-bool collide(const OBB &a, const Edge &b);
-
-//Ray vs. AABB (SAT?)
-//technically a bit less efficient than it could be, but who do I care
 bool collide(const AABB &a, const Edge &b);
-
-//plane things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//Plane vs. OBB
-//SAT
-bool collide(const OBB &a, const Triangle &b);
-
-//Plane vs. AABB
-//SAT
 bool collide(const AABB &a, const Triangle &b);
-
-//Plane vs. Convex Hull
-bool collide(const CV_Hull &a, const Triangle &b);
-
-//AABB things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-//AABB vs. AABB
-//Simple Check
 bool collide(const AABB &a, const AABB &b);
 
-
-//AABB vs. OBB
-//SAT
+bool collide(const OBB &a, const OBB &b);
+bool collide(const OBB &a, const Edge &b);
+bool collide(const OBB &a, const Triangle &b);
 bool collide(const OBB &a, const AABB &b);
 
-//AABB vs. Convex Hull
-bool collide(const CV_Hull &a, const AABB &b);
-//OBB things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+bool collide(const Edge &e, const Triangle &t);
 
-//OBB vs. OBB (SAT) (because I want to do it now, shuddup
-//the first chunk of this is stuff
+bool collide(const Capsule &a, const Capsule &b);
+bool collide(const Capsule &a, const Sphere &b);
+bool collide(const Capsule &a, const OBB &b);
+bool collide(const Capsule &a, const ConvexHull &b);
 
-bool collide(const OBB &a, const OBB &b);
-
-//OBB vs. Convex Hull
-bool collide(const CV_Hull &a, const OBB &b);
-
-//Convex Hull things~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-//CVHull vs. CVHull
-bool collide(const CV_Hull &a, const CV_Hull &b);
+#endif

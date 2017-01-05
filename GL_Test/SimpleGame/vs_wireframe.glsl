@@ -16,4 +16,15 @@ void main(void) {
   gl_PointSize = 10;
 
   z = gl_Position.z;
+
+  //some exponential falloff
+  float maxdist = 512;
+  float factor = z/maxdist;
+
+  factor = factor;
+
+  factor = factor < 1.0 ? factor : 1.0;
+
+  frag_colour = (1 - factor)*frag_colour +(factor)*vec4(.99, .99, 1.0, 1.0);
+  //frag_colour = vec4(.95, .95, 1.0, 1.0);
 }
