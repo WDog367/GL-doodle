@@ -254,7 +254,7 @@ void OBB::draw(const glm::mat4 &vp) {
 
 	drawable->Draw(vp*trans*glm::scale(halfWidths));
 }
-#endif
+#endif //COLLIDERS_DRAWABLE
 
 //actual collision
 

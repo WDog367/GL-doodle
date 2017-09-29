@@ -72,6 +72,8 @@ public:
 	glm::vec3 halfWidths;
 	
 public:
+	//todo: minimize number of constructors
+	//replace with static initialization functions (code becomes more readable, and creates more of a "funnel" to a single constructor
 	OBB(glm::vec3 HalfWidths, glm::mat4 &trans);
 	OBB(glm::vec3 min, glm::vec3 max);
 	OBB(glm::vec3* points, int num);

@@ -27,6 +27,8 @@ public:
 	//checks if another AABB rests within
 	bool contains(const AABB &box);
 
+	static bool collide(const AABB &, const AABB &);
+
 	virtual void translate(glm::vec3);
 
 	virtual AABB getBounds();
@@ -66,11 +68,7 @@ public:
 	void translate(const glm::vec3 &);
 };
 
-//bool collide(AABB &, AABB &);
 
-//Todo:	-Remove Static things, instead have "OctreeBase" that Octree nodes reference
-//		-Improve AABB to interact with  OBB
-//		-Optimizations for static objects (not sure if done)
 struct CollisionInfo {//used to store a position 
 	collideResult collision;
 	Entity *member[2];
@@ -83,6 +81,9 @@ struct CollisionInfo {//used to store a position
 	}
 };
 
+//Todo:	-Remove Static things, instead have "OctreeBase" that Octree nodes reference
+//		-Improve AABB to interact with  OBB
+//		-Optimizations for static (non-stationary) objects (if an object hasn't moved, it doesn't need to be compared to other objects that haven't moved)
 class OctTree {
 private:
 	AABB region;

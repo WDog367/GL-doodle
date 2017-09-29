@@ -14,7 +14,7 @@ GLuint LoadShader(GLenum type, const char *fileName) {
 	GLint compiled;
 
 	fsource.open(fileName);
-	if (!fsource) {//not 100% sure if this is a valid thing
+	if (!fsource) {
 		cerr << fileName << ": Can't open shader source" << endl;
 		return 0;
 	}

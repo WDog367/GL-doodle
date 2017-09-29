@@ -37,8 +37,8 @@ Entity::Entity(Collider* collider) {
 }
 
 void Entity::draw(const glm::mat4 &vp) {
-	//collider->draw(vp);
-	bound.draw(vp);
+	collider->draw(vp);
+	//bound.draw(vp);
 }
 
 void Entity::translate(const glm::vec3 &translation) {
@@ -135,13 +135,16 @@ void AABB::draw(const glm::mat4 &vp) {
 	drawable->Draw(vp*model);
 }
 
-bool collide(const AABB &a, const AABB &b) {
+bool AABB::collide(const AABB &a, const AABB &b) {
 	return (a.min.x <= b.max.x && a.max.x >= b.min.x) &&
 		(a.min.y <= b.max.y && a.max.y >= b.min.y) &&
 		(a.min.z <= b.max.z && a.max.z >= b.min.z);
 }
+
 //Octtree Collision Partitioner
+
 //#######################################
+
 //class Declarations~~~~~~~~~~~~~~~~~
 std::queue<Entity*> OctTree::pendingInsertion = std::queue<Entity*>();
 
@@ -189,23 +192,25 @@ void OctTree::UpdateTree() {
 	treeReady = true;
 }
 
-
+/**
+	debug function, tries to find obj in the tree,
+	and draws the region that holds it
+*/
 void OctTree::DrawContainingRegion(Entity* obj, glm::mat4 &vp) {
 
 	std::vector<Entity*>::iterator it;
-	std::vector<Entity*>::iterator jt;
 	std::vector<Entity*>::iterator id;
-	std::vector<Entity*>::iterator jd;
-	std::vector<Entity*>::iterator kt;
 
 	id = objList.end();
 
+	//check owned objects, to see if we own this one
 	for (it = objList.begin(); it != id; it++) {
 		if (*it == obj) {
 			region.draw(vp);
 		}
 	}
 
+	//check children regions for object
 	for (int i = 0; i < 8; i++) {
 		if (child[i] != nullptr) {
 			child[i]->DrawContainingRegion(obj, vp);
@@ -213,21 +218,21 @@ void OctTree::DrawContainingRegion(Entity* obj, glm::mat4 &vp) {
 	}
 }
 
+/** 
+	check for colliders that have moved, 
+	and see if they need to be repositioned
+	in th octree	
+*/
 void OctTree::CheckForMove() {
 
 	std::vector<Entity*>::iterator it;
-	std::vector<Entity*>::iterator jt;
 	std::vector<Entity*>::iterator id;
-	std::vector<Entity*>::iterator jd;
-	std::vector<Entity*>::iterator kt;
 
 	id = objList.end();
 	it = objList.begin();
 	while (it != id) {
 		if ((*it)->hasMoved()) {
-			(*it)->mesh->collision = 3;
 			if (Reposition(*it)) {
-				(*it)->mesh->collision = 4;
 				it = objList.erase(it);
 				id = objList.end();
 			}
@@ -239,30 +244,21 @@ void OctTree::CheckForMove() {
 			it++;
 		}
 	}
-	for (; it != id; it++) {
-		if ((*it)->hasMoved()) {
-			(*it)->mesh->collision = 3;
-			if (Reposition(*it)) {
-				(*it)->mesh->collision = 4;
-				it = objList.erase(it);
-				if (it == objList.end())
-					break;//probably a for loop is a bad call
-				it--;
-				id = objList.end();
-			}
-		}
-	}
 
 	for (int i = 0; i < 8; i++) {
 		if (child[i] != nullptr) {
-
 			child[i]->CheckForMove();
-
 		}
 	}
 }
 
-//doing this recursively, but could probably do it iteratively
+/**
+	Position an object in the octtree
+	returns true, if the object has changed to a new region
+	so that the caller can delete it from their list, if necessary
+
+	todo: look to combine parts with BuildTree
+*/
 bool OctTree::Reposition(Entity* obj) {
 	bool canCreateChild;
 	bool inPos = false;
@@ -320,6 +316,8 @@ bool OctTree::Reposition(Entity* obj) {
 				}
 			}
 			else {
+				//doesn't fit in current region anymore, so move up to parent
+				//and restart the loop
 				curNode = curNode->parent;
 			}
 		}
@@ -397,20 +395,49 @@ void OctTree::BuildTree() {
 	treeBuilt = true;
 }
 
+/*
+	Provides allocated memeber variable collisionList, as the storage for the object list
+	needed in the recursive CheckCollision function
+*/
 void OctTree::CheckCollision(std::vector<CollisionInfo> &Collisions) {
 	CheckCollision(Collisions, collisionList);
 }
 
+
+/*
+	check a single collider agianst a list of possible colliders
+	specified by the start and end iterators
+	used in CheckCollision, below
+*/
+void inline CheckIndividualCollision(Entity* collider, 
+	std::vector<Entity*>::iterator &it, std::vector<Entity*>::iterator &id,
+	std::vector<CollisionInfo> &outCollisions) {
+	for (; it != id; it++) {
+		//check collision
+		if (AABB::collide(collider->bound, (*it)->bound)) {
+			//reaction to collision (or summarize information)
+			collideResult result = collider->collider->intersect(*(*it)->collider);
+
+			if (result) {
+				outCollisions.emplace_back(result);
+				outCollisions.back().member[0] = collider;
+				outCollisions.back().member[1] = *it;
+			}
+		}
+	}
+}
+
+/*
+	Proceed down the tree, and compare each region's objects, to see if they've collided
+*/
 void OctTree::CheckCollision(std::vector<CollisionInfo> &Collisions, std::vector<Entity*> &incObjList) {
 
 	static std::vector<Entity*>::iterator it;
 	static std::vector<Entity*>::iterator jt;
 	static std::vector<Entity*>::iterator id;
-	static std::vector<Entity*>::iterator jd;
 	std::vector<Entity*>::iterator kt;
 
 	id = objList.end();
-	jd = incObjList.end();
 
 	glm::vec3 coll_point;
 	glm::vec3 coll_norm;
@@ -419,62 +446,28 @@ void OctTree::CheckCollision(std::vector<CollisionInfo> &Collisions, std::vector
 	collideResult tempResult;
 
 	for (it = objList.begin(); it != id; it++) {
-		//fist, check the objects of this node against other ones in the node
+		//fist, check objects of this node against other ones in the node
 		jt = it;
 		jt++;
-		for (; jt != id; jt++) {
-			//check collision
-			if (collide((*it)->bound, (*jt)->bound)) {
-				//reaction to collision (or summarize information)
-
-
-				tempResult = (*it)->collider->intersect(*(*jt)->collider);
-
-				if (tempResult) {
-					std::cout << "collision occured! \n";
-					Collisions.emplace_back(tempResult);
-					Collisions.back().member[0] = *it;
-					Collisions.back().member[1] = *jt;
-				}
-			}
-		}
+		CheckIndividualCollision(*it, jt, id, Collisions);
 
 		//next, check them against the incoming object list
-		for (jt = incObjList.begin(); jt != jd; jt++) {
-			if (collide((*it)->bound, (*jt)->bound)) {
-				//reaction to collision (or summarize information)
-				
-				tempResult = (*it)->collider->intersect(*(*jt)->collider);
-				if (tempResult) {
-
-					std::cout << "collision occured! \n";
-					Collisions.emplace_back(tempResult);
-					Collisions.back().member[0] = *it;
-					Collisions.back().member[1] = *jt;
-				}
-			}
-		}
+		CheckIndividualCollision(*it, incObjList.begin(), incObjList.end(), Collisions);
 	}
 
-	//next, add this node's objects to the object list, and send it on to the children nodes
-	for (std::vector<Entity*>::iterator i = objList.begin(); i != objList.end(); i++) {
+	//add this node's objects to the object list, 
+	//to send it on to the children nodes
+	for (auto i = objList.begin(); i != objList.end(); i++) {
 		incObjList.push_back(*i);
 	}
-	//kt = incObjList.begin();
-	//incObjList.splice(kt, objList);
 
 	for (int i = 0; i < 8; i++) {
 		if (child[i] != nullptr) {
 			child[i]->CheckCollision(Collisions, incObjList);
 		}
 	}
-
+	
+	//remove added elements from incObjectList, before returning to parent
 	incObjList.resize(incObjList.size() - objList.size());
-	//	for (int i = 0; i < objList.size(); i++) {
-	//		incObjList.erase(incObjList.begin());
-	//	}
-
-	//putting things back where they belong
-	//objList.splice(objList.begin(), incObjList, incObjList.begin(), kt);
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
