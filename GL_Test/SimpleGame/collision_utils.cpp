@@ -10,6 +10,7 @@
 #include "glm/gtc/type_ptr.hpp"
 
 #include "OctTree.h"
+#include "Entity.h"
 
 //stuff for drawing
 #ifdef COLLIDERS_DRAWABLE
@@ -22,7 +23,20 @@
 
 //from the Eigen library, the only place it's used is calculating the OBB from a point cloud
 #include <Eigen/Eigenvalues>
-//AABB functions?
+
+bool Collider::isMoving()
+{
+	if (owner) {
+		return owner->hasMoved();
+	}
+
+	return false;
+}
+
+void Collider::tick(float delta)
+{
+
+}
 
 //OBB functions
 OBB::OBB(glm::vec3 hw, glm::mat4 &trans) :halfWidths(hw), trans(trans) {

@@ -8,8 +8,6 @@
 class AABB;
 class Entity;
 
-
-
 //AABB used to keep track of regions
 class AABB {
 public:
@@ -42,36 +40,9 @@ public:
 #endif
 };
 
-//Entity is a collision Object
-class Entity {
-public:
-	glm::vec3 lastLoc;
-
-	AABB bound;
-
-public:
-	Collider *collider;
-	Mesh *mesh;
-
-	bool hasMoved();
-
-	glm::vec3 loc;
-
-	void Tick(float delta);
-
-	const AABB* getBound();
-
-	void draw(const glm::mat4 &mv);
-
-	Entity(Collider*);
-
-	void translate(const glm::vec3 &);
-};
-
-
 struct CollisionInfo {//used to store a position 
 	collideResult collision;
-	Entity *member[2];
+	Collider* member[2];
 	
 	CollisionInfo() {
 	}
@@ -87,7 +58,7 @@ struct CollisionInfo {//used to store a position
 class OctTree {
 private:
 	AABB region;
-	std::vector<Entity*> objList;
+	std::vector<Collider*> objList;
 
 	OctTree *child[8];
 	OctTree *parent;
@@ -95,34 +66,34 @@ private:
 	static const int minSize = 1;
 	static const int minObj = 10;
 	static const int maxDepth = 20;
-	static std::queue<Entity*> pendingInsertion;
+	static std::queue<Collider*> pendingInsertion;
 	bool treeBuilt = false;
 	bool treeReady = false;
 
 	int depth;
 
-	std::vector<Entity*> collisionList;
+	std::vector<Collider*> collisionList;
 
 private:
 	void BuildTree();
-	void Insert(Entity*);
-
 	void CheckForMove();
-	bool Reposition(Entity*);
+	bool Reposition(Collider*);
 public:
 	OctTree(AABB region);
-	OctTree(AABB region, std::vector<Entity*> objList);
-	OctTree(AABB region, std::vector<Entity*> objList, OctTree* parent);
+	OctTree(AABB region, std::vector<Collider*> objList);
+	OctTree(AABB region, std::vector<Collider*> objList, OctTree* parent);
 
 	void UpdateTree();
 	//Perhaps don't do it as a reference? perhaps as a member of the octtree head?
 	void CheckCollision(std::vector<CollisionInfo> &Collisions);
-	void CheckCollision(std::vector<CollisionInfo> &Collisions, std::vector<Entity*> &incObjList);
+	void CheckCollision(std::vector<CollisionInfo> &Collisions, std::vector<Collider*> &incObjList);
+
+	void Insert(Collider*);
 
 	AABB getRegion() { return region; }
 
 	void draw(const glm::mat4 &vp);
 
-	void DrawContainingRegion(Entity* obj, glm::mat4 &vp);
+	void DrawContainingRegion(Collider* obj, glm::mat4 &vp);
 
 };

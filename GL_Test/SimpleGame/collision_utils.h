@@ -17,6 +17,7 @@ class OBB;
 class Capsule;
 class ConvexHull;
 class AABB;
+class Entity;
 
 struct collideResult{
 	bool isIntersect;
@@ -57,6 +58,13 @@ public:
 	virtual collideResult intersect(OBB &a) = 0;
 	virtual collideResult intersect(Capsule &a) = 0;
 	virtual collideResult intersect(ConvexHull &a) = 0;
+
+	virtual bool isMoving();
+
+	//members?
+public:
+	Entity* owner = nullptr;
+	virtual void tick(float delta);
 
 #ifdef COLLIDERS_DRAWABLE
 	glm::vec3 colour = glm::vec3(0, 1, 0);

@@ -11,40 +11,6 @@
 
 #include "OctTree.h"
 
-//Entity
-//#########################################################
-
-void Entity::Tick(float delta) {
-	lastLoc = loc;
-	glm::vec3 colour = bound.colour;
-	bound = collider->getBounds();
-	bound.colour = colour;
-}
-
-bool Entity::hasMoved() {
-	glm::vec3 velocity = loc - lastLoc;
-	return velocity.x != 0 && velocity.y != 0 && velocity.z != 0;
-}
-
-const AABB * Entity::getBound() {
-	return &bound;
-}
-
-Entity::Entity(Collider* collider) {
-	//copy collider array
-	this->collider = collider;
-	this->bound = collider->getBounds();
-}
-
-void Entity::draw(const glm::mat4 &vp) {
-	collider->draw(vp);
-	//bound.draw(vp);
-}
-
-void Entity::translate(const glm::vec3 &translation) {
-	collider->translate(translation);
-}
-
 //Axis Aligned Bounding Box
 //##########################################################
 //constructors
@@ -146,14 +112,14 @@ bool AABB::collide(const AABB &a, const AABB &b) {
 //#######################################
 
 //class Declarations~~~~~~~~~~~~~~~~~
-std::queue<Entity*> OctTree::pendingInsertion = std::queue<Entity*>();
+std::queue<Collider*> OctTree::pendingInsertion = std::queue<Collider*>();
 
 OctTree::OctTree(AABB region) :region(region), parent(nullptr), depth(0) {
 }
 
-OctTree::OctTree(AABB region, std::vector<Entity*> objList) : region(region), objList(objList), parent(nullptr), depth(0) {
+OctTree::OctTree(AABB region, std::vector<Collider*> objList) : region(region), objList(objList), parent(nullptr), depth(0) {
 }
-OctTree::OctTree(AABB region, std::vector<Entity*> objList, OctTree* parent) : region(region), objList(objList), parent(parent), depth(parent->depth + 1) {
+OctTree::OctTree(AABB region, std::vector<Collider*> objList, OctTree* parent) : region(region), objList(objList), parent(parent), depth(parent->depth + 1) {
 }
 
 void OctTree::draw(const glm::mat4 &vp) {
@@ -173,7 +139,7 @@ void OctTree::UpdateTree() {
 	if (!treeBuilt) {
 		while (pendingInsertion.size() > 0) {
 			//objList.insert(objList.end(), pendingInsertion.front());
-			objList.push_back(pendingInsertion.front());//looks a bit nicer
+			objList.push_back(pendingInsertion.front());
 			pendingInsertion.pop();
 		}
 		BuildTree();
@@ -196,10 +162,10 @@ void OctTree::UpdateTree() {
 	debug function, tries to find obj in the tree,
 	and draws the region that holds it
 */
-void OctTree::DrawContainingRegion(Entity* obj, glm::mat4 &vp) {
+void OctTree::DrawContainingRegion(Collider* obj, glm::mat4 &vp) {
 
-	std::vector<Entity*>::iterator it;
-	std::vector<Entity*>::iterator id;
+	std::vector<Collider*>::iterator it;
+	std::vector<Collider*>::iterator id;
 
 	id = objList.end();
 
@@ -225,13 +191,13 @@ void OctTree::DrawContainingRegion(Entity* obj, glm::mat4 &vp) {
 */
 void OctTree::CheckForMove() {
 
-	std::vector<Entity*>::iterator it;
-	std::vector<Entity*>::iterator id;
+	std::vector<Collider*>::iterator it;
+	std::vector<Collider*>::iterator id;
 
 	id = objList.end();
 	it = objList.begin();
 	while (it != id) {
-		if ((*it)->hasMoved()) {
+		if ((*it)->isMoving()) {
 			if (Reposition(*it)) {
 				it = objList.erase(it);
 				id = objList.end();
@@ -259,7 +225,7 @@ void OctTree::CheckForMove() {
 
 	todo: look to combine parts with BuildTree
 */
-bool OctTree::Reposition(Entity* obj) {
+bool OctTree::Reposition(Collider* obj) {
 	bool canCreateChild;
 	bool inPos = false;
 	OctTree* curNode = this;
@@ -287,13 +253,13 @@ bool OctTree::Reposition(Entity* obj) {
 			octant[7] = AABB(glm::vec3(center.x, center.y, center.z), glm::vec3(region.max.x, region.max.y, region.max.z));
 
 			for (int i = 0; i < 8; i++) {
-				if (octant[i].contains(obj->bound)) {
+				if (octant[i].contains(obj->getBounds())) {
 					if (curNode->child[i] != nullptr) {
 						curNode = curNode->child[i];
 						dropped = true;
 					}
 					else {
-						std::vector<Entity*> octList;
+						std::vector<Collider*> octList;
 						octList.push_back(obj);
 						curNode->child[i] = new OctTree(octant[i], octList, this);
 						curNode->child[i]->BuildTree();
@@ -303,7 +269,7 @@ bool OctTree::Reposition(Entity* obj) {
 			}
 		}
 		if (!dropped) {
-			if (curNode->region.contains(obj->bound) || curNode->parent == nullptr) {
+			if (curNode->region.contains(obj->getBounds()) || curNode->parent == nullptr) {
 				//didn't fit into any of the children, but does fit this one
 				//so this is where we want to be
 				if (curNode != this) {
@@ -325,8 +291,8 @@ bool OctTree::Reposition(Entity* obj) {
 
 }
 
-void OctTree::Insert(Entity* obj) {
-	std::cout << "Insert: this shouldn't be run\n";
+void OctTree::Insert(Collider* obj) {
+	pendingInsertion.push(obj);
 }
 
 void OctTree::BuildTree() {
@@ -346,7 +312,7 @@ void OctTree::BuildTree() {
 	glm::vec3 center = region.min + dimensions / 2.0f;
 
 	AABB octant[8];
-	std::vector<Entity*> octList[8];
+	std::vector<Collider*> octList[8];
 
 	octant[0] = AABB(region.min, center);
 	octant[1] = AABB(glm::vec3(region.min.x, center.y, region.min.z), glm::vec3(center.x, region.max.y, center.z));
@@ -358,12 +324,12 @@ void OctTree::BuildTree() {
 	octant[7] = AABB(glm::vec3(center.x, center.y, center.z), glm::vec3(region.max.x, region.max.y, region.max.z));
 
 	//for each object in this tree, compare it to each octant; if it fits neatly in one, insert it
-	std::vector<Entity*>::iterator it = objList.begin();
+	std::vector<Collider*>::iterator it = objList.begin();
 	while (it != objList.end()) {
 		bool fit = false;
 
 		for (int i = 0; i < 8; i++) {
-			if (octant[i].contains((*it)->bound)) {
+			if (octant[i].contains((*it)->getBounds())) {
 				octList[i].push_back(*it);
 				fit = true;
 				break;
@@ -409,14 +375,14 @@ void OctTree::CheckCollision(std::vector<CollisionInfo> &Collisions) {
 	specified by the start and end iterators
 	used in CheckCollision, below
 */
-void inline CheckIndividualCollision(Entity* collider, 
-	std::vector<Entity*>::iterator &it, std::vector<Entity*>::iterator &id,
+void inline CheckIndividualCollision(Collider* collider, 
+	std::vector<Collider*>::iterator &it, std::vector<Collider*>::iterator &id,
 	std::vector<CollisionInfo> &outCollisions) {
 	for (; it != id; it++) {
 		//check collision
-		if (AABB::collide(collider->bound, (*it)->bound)) {
+		if (AABB::collide(collider->getBounds(), (*it)->getBounds())) {
 			//reaction to collision (or summarize information)
-			collideResult result = collider->collider->intersect(*(*it)->collider);
+			collideResult result = collider->intersect(*(*it));
 
 			if (result) {
 				outCollisions.emplace_back(result);
@@ -430,12 +396,12 @@ void inline CheckIndividualCollision(Entity* collider,
 /*
 	Proceed down the tree, and compare each region's objects, to see if they've collided
 */
-void OctTree::CheckCollision(std::vector<CollisionInfo> &Collisions, std::vector<Entity*> &incObjList) {
+void OctTree::CheckCollision(std::vector<CollisionInfo> &Collisions, std::vector<Collider*> &incObjList) {
 
-	static std::vector<Entity*>::iterator it;
-	static std::vector<Entity*>::iterator jt;
-	static std::vector<Entity*>::iterator id;
-	std::vector<Entity*>::iterator kt;
+	static std::vector<Collider*>::iterator it;
+	static std::vector<Collider*>::iterator jt;
+	static std::vector<Collider*>::iterator id;
+	std::vector<Collider*>::iterator kt;
 
 	id = objList.end();
 

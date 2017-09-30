@@ -22,6 +22,7 @@
 
 #include "collision_utils.h"
 #include "OctTree.h"
+#include "Entity.h"
 
 //todo: get rid of global variables
 //maybe use singleton game class?
@@ -261,7 +262,10 @@ int main(int argc, char *argv[]) {
 	Entitys = fill_level(levelRegion.max, Entitynum);
 	Entitys.push_back(new Entity(player));
 
-	collisionTree = new OctTree(levelRegion, Entitys);
+	collisionTree = new OctTree(levelRegion);
+	for (Entity* entity : Entitys) {
+		collisionTree->Insert(entity->collider);
+	}
 	collisionTree->UpdateTree();
 
 	int timeCurr = SDL_GetTicks();
@@ -320,9 +324,9 @@ int main(int argc, char *argv[]) {
 		
 		//draw points to show the collision results
 		for (int i = 0; i < collisionList.size(); i++) {
-			collisionList[i].member[0]->bound.colour = glm::vec3(1, 1, 0);
-			collisionList[i].member[1]->bound.colour = glm::vec3(1, 1, 0);
-			collisionList[i].member[0]->translate(-collisionList[i].collision.normal*collisionList[i].collision.depth);
+			collisionList[i].member[0]->owner->bound.colour = glm::vec3(1, 1, 0);
+			collisionList[i].member[1]->owner->bound.colour = glm::vec3(1, 1, 0);
+			collisionList[i].member[0]->owner->translate(-collisionList[i].collision.normal*collisionList[i].collision.depth);
 			drawDot(collisionList[i].collision.point, vp, glm::vec3(1, 0, 0));
 			drawLine(collisionList[i].collision.point, collisionList[i].collision.point - collisionList[i].collision.normal*collisionList[i].collision.depth, vp, glm::vec3(0, 0, 1));
 		}
