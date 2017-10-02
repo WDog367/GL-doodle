@@ -14,8 +14,10 @@ class Mesh {
 public:
 	GLuint vao;
 	GLuint vbo_coord;
+	GLuint vbo_normals;
 	GLuint ibo_elements;
 	GLuint uniform_Matrix;
+	GLuint uniform_m_3x3_inv_transp;
 	GLuint program;
 
 	GLuint drawShape;
@@ -38,6 +40,7 @@ public:
 
 	public:
 	virtual void Draw(const glm::mat4 &mvp);
+	virtual void Draw(const glm::mat4 &vp, const glm::mat4 &model);
 
 	void updateMesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum);
 	void updateProgram(GLuint program);//also indices of vertex and element attributes as parameters?
