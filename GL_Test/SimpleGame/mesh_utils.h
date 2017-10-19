@@ -10,6 +10,8 @@
 #define MAXBONES 50//might use arrays at some point; not today, suckkaah
 #define MAXCHANNEL 155//should be around MAXBONES*3+3 plus a few more for kicks, why not?
 
+void loadObj(std::vector<float> &vertices, std::vector<unsigned int> &elements, char *fileName, std::vector<glm::vec3> normals);
+
 class Mesh {
 public:
 	GLuint vao;

@@ -45,6 +45,8 @@ public:
 	virtual void rotate(glm::quat) = 0;
 	virtual void scale(glm::vec3) = 0;
 
+	virtual glm::mat4 & getTransform() =0;
+
 	//getting bounds, for use in coarse collision
 	virtual AABB getBounds() = 0;
 	virtual AABB getBounds(glm::mat4 &model) =0;
@@ -95,6 +97,8 @@ public:
 	virtual void rotate(glm::quat);
 	virtual void scale(glm::vec3);
 
+	virtual glm::mat4 & getTransform();
+
 	//getting bounds, for use in coarse collision
 	virtual AABB getBounds();
 	virtual AABB getBounds(glm::mat4 &model);
@@ -117,6 +121,51 @@ public:
 #endif
 };
 
+class ConvexHull : public Collider {
+public:
+	glm::vec3 *points;
+	int num;
+	glm::mat4 trans;
+public:
+	//copies points over. should store adjacency info?
+	//could be better in many ways
+	ConvexHull(glm::vec3* inpoints, int num, const glm::mat4 &trans);
+
+	virtual ~ConvexHull();
+
+public:
+	//generic transformations
+	virtual void translate(glm::vec3);
+	virtual void rotate(glm::quat);
+	virtual void scale(glm::vec3);
+
+	//getting bounds, for use in coarse collision
+	virtual AABB getBounds();
+	virtual AABB getBounds(glm::mat4 &model);
+
+	virtual glm::mat4 & getTransform();
+
+	//GJK necessary interface
+	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
+	//should also store adjacency information, it'll be usefull for getFurthestPoint()
+	//could also do it as an array of triangles, but that seems... bad
+
+	//functions for the double dispatch
+	virtual collideResult intersect(Collider &a);
+	virtual collideResult intersect(Sphere &a);
+	virtual collideResult intersect(OBB &a);
+	virtual collideResult intersect(Capsule &a);
+	virtual collideResult intersect(ConvexHull &a);
+
+#ifdef COLLIDERS_DRAWABLE
+//	static void init_drawable();
+//	static bool isdrawableinit;
+//	static class Mesh* drawable;
+	virtual void draw(const glm::mat4 &vp);
+#endif
+
+};
+
 //actual collision functions
 collideResult intersect(OBB &a, OBB &b);
 
@@ -125,6 +174,55 @@ collideResult intersect(OBB &a, OBB &b);
 //i.e. it projects each shape onto each axis and checks for overlap
 //This just leaves setting up the axes and verts in the collision fcns, which is a bit less code
 bool SAT_collide(glm::vec3 &mtv, glm::vec3 &impactpoint, const glm::vec3 *axes, const glm::vec3 *a_vert, const glm::vec3 *b_vert, int axes_num, int a_num, int b_num);
+
+//##################################################################################################################
+//Stuff for GJK and EPA collision algorithms (Move to other file)
+//##################################################################################################################
+struct SupportPoint {
+	glm::vec3 v;//Difference between a and b; i.e. the point on the minowski(spelled wrong) difference
+
+	glm::vec3 a;//Point taken from hull A
+	glm::vec3 b;//Point taken from hull B
+
+	bool operator==(const SupportPoint &r) const;
+
+};
+//maybe these structs should be in the the cpp file? they're just for implementation?
+/*
+struct SP_Triangle {
+SupportPoint points[3];
+glm::vec3 norm;
+
+SP_Triangle(const SupportPoint &a, const SupportPoint &b, const SupportPoint &c) {
+points[0] = a;
+points[1] = b;
+points[2] = c;
+norm = glm::normalize(glm::cross((b.v - a.v), (c.v - a.v)));
+}
+};
+
+struct SP_Edge {
+SupportPoint points[2];
+
+SP_Edge(const SupportPoint &a, const SupportPoint &b) {
+points[0] = a;
+points[1] = b;
+}
+};
+
+SupportPoint GenerateSupportPoint(IGJKFcns *a, IGJKFcns* b, glm::vec3 dir);
+*/
+//#########################################################
+//find the baycentric point of a point on a triangle
+void barycentric(const glm::vec3 &p, const glm::vec3 &a, const glm::vec3 &b, const glm::vec3 &c, float *u, float *v, float *w);
+
+//#########################################################
+//GJK stuff;
+bool collision_GJK(Collider* a, Collider* b, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth);
+void collision_EPA(Collider* a, Collider* b, std::vector<SupportPoint> sim, glm::vec3 *coll_point, glm::vec3 *coll_norm, float *coll_depth);
+
+collideResult intersect_GJK(Collider& a, Collider& b);
+
 #if 0
 //classes which aren't rellay colliders
 //class AABB;//will only be used in the course pass, compared against other AABBs

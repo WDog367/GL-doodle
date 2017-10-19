@@ -299,19 +299,18 @@ void loadObj(std::vector<float> &vertices, std::vector<unsigned int> &elements, 
 
 			}
 		}
+	}
 
-		normals.resize(vertices.size(), glm::vec3(0.0, 0.0, 0.0));
-		for (int i = 0; i < elements.size(); i += 3)
-		{
-			GLushort ia = elements[i];
-			GLushort ib = elements[i + 1];
-			GLushort ic = elements[i + 2];
-			glm::vec3 normal = glm::normalize(glm::cross(
-				glm::vec3(vertices[ib]) - glm::vec3(vertices[ia]),
-				glm::vec3(vertices[ic]) - glm::vec3(vertices[ia])));
-			normals[ia] = normals[ib] = normals[ic] = normal;
-		}
-
+	normals.resize(vertices.size(), glm::vec3(0.0, 0.0, 0.0));
+	for (int i = 0; i < elements.size(); i += 3)
+	{
+		GLushort ia = elements[i];
+		GLushort ib = elements[i + 1];
+		GLushort ic = elements[i + 2];
+		glm::vec3 normal = glm::normalize(glm::cross(
+			glm::vec3(vertices[ib]) - glm::vec3(vertices[ia]),
+			glm::vec3(vertices[ic]) - glm::vec3(vertices[ia])));
+		normals[ia] = normals[ib] = normals[ic] = normal;
 	}
 
 	file.close();
