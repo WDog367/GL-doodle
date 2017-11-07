@@ -39,17 +39,22 @@ struct collideResult{
 };
 
 class Collider {
-public:
-	//generic transformations
-	virtual void translate(glm::vec3) = 0;
-	virtual void rotate(glm::quat) = 0;
-	virtual void scale(glm::vec3) = 0;
+protected:
+	glm::mat4 trans;
 
-	virtual glm::mat4 & getTransform() =0;
+public:
+	Collider();
+	Collider(const glm::mat4& trans);
+
+	//generic transformations
+	virtual void translate(glm::vec3);
+	virtual void rotate(glm::quat);
+	virtual void scale(glm::vec3);
+
+	virtual glm::mat4 & getTransform();
 
 	//getting bounds, for use in coarse collision
-	virtual AABB getBounds() = 0;
-	virtual AABB getBounds(glm::mat4 &model) =0;
+	virtual AABB getBounds();
 
 	//for GJK algorithm, for convex collisions
 	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir) = 0;
@@ -78,7 +83,6 @@ public:
 class OBB : public Collider{
 public:
 	//Oriented bounding box stored as a set of half widths, and a transformation
-	glm::mat4 trans;
 	glm::vec3 halfWidths;
 	
 public:
@@ -88,21 +92,11 @@ public:
 	OBB(glm::vec3 min, glm::vec3 max);
 	OBB(glm::vec3* points, int num);
 
+	virtual ~OBB();
+
 	void getVertices(glm::vec3 verts[8]);
 
 public:
-
-	//generic transformations
-	virtual void translate(glm::vec3);
-	virtual void rotate(glm::quat);
-	virtual void scale(glm::vec3);
-
-	virtual glm::mat4 & getTransform();
-
-	//getting bounds, for use in coarse collision
-	virtual AABB getBounds();
-	virtual AABB getBounds(glm::mat4 &model);
-
 	//for GJK algorithm, for convex collisions
 	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
 
@@ -125,7 +119,6 @@ class ConvexHull : public Collider {
 public:
 	glm::vec3 *points;
 	int num;
-	glm::mat4 trans;
 public:
 	//copies points over. should store adjacency info?
 	//could be better in many ways
@@ -134,17 +127,6 @@ public:
 	virtual ~ConvexHull();
 
 public:
-	//generic transformations
-	virtual void translate(glm::vec3);
-	virtual void rotate(glm::quat);
-	virtual void scale(glm::vec3);
-
-	//getting bounds, for use in coarse collision
-	virtual AABB getBounds();
-	virtual AABB getBounds(glm::mat4 &model);
-
-	virtual glm::mat4 & getTransform();
-
 	//GJK necessary interface
 	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
 	//should also store adjacency information, it'll be usefull for getFurthestPoint()

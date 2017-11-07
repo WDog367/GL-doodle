@@ -38,8 +38,45 @@ void Collider::tick(float delta)
 
 }
 
+Collider::Collider(): trans(1.0f) {}
+
+Collider::Collider(const glm::mat4& trans) : trans(trans) {}
+
+//generic transformations
+void Collider::translate(glm::vec3 v) {
+	//keep translations on the right side
+	trans = glm::translate(v)*trans;
+}
+void Collider::rotate(glm::quat q) {
+	//not sure how I feel about this one
+	//keep rotations on the left side
+	trans = trans*glm::mat4_cast(q);
+}
+void Collider::scale(glm::vec3 s) {
+	//keep scaling on the right side; shouldn't fight with rotation,
+	trans = glm::scale(s)*trans;
+}
+
+glm::mat4 & Collider::getTransform()
+{
+	return trans;
+}
+
+AABB Collider::getBounds() {
+	glm::vec3 x(1, 0, 0);
+	glm::vec3 y(0, 1, 0);
+	glm::vec3 z(0, 0, 1);
+
+	//could be optimized a bit, rather than just calling furthestpointindirection
+	glm::vec3 max(furthestPointInDirection(x).x, furthestPointInDirection(y).y, furthestPointInDirection(z).z);
+	glm::vec3 min(furthestPointInDirection(-x).x, furthestPointInDirection(-y).y, furthestPointInDirection(-z).z);
+
+	return AABB(min, max);
+
+}
+
 //OBB functions
-OBB::OBB(glm::vec3 hw, glm::mat4 &trans) :halfWidths(hw), trans(trans) {
+OBB::OBB(glm::vec3 hw, glm::mat4 &trans) :halfWidths(hw), Collider(trans) {
 }
 OBB::OBB(glm::vec3 min, glm::vec3 max) {
 	halfWidths = 0.5f*(max - min);
@@ -139,6 +176,8 @@ OBB::OBB(glm::vec3* points, int num) {
 	//QED it's done
 }
 
+OBB::~OBB() {}
+
 void OBB::getVertices(glm::vec3 verts[8]) {
 	verts[0] = glm::vec3(trans*glm::vec4(-halfWidths.x, -halfWidths.y, -halfWidths.z, 1.0));
 	verts[1] = glm::vec3(trans*glm::vec4(-halfWidths.x, halfWidths.y, -halfWidths.z, 1.0));
@@ -148,44 +187,6 @@ void OBB::getVertices(glm::vec3 verts[8]) {
 	verts[5] = glm::vec3(trans*glm::vec4(-halfWidths.x, halfWidths.y, halfWidths.z, 1.0));
 	verts[6] = glm::vec3(trans*glm::vec4(halfWidths.x, halfWidths.y, halfWidths.z, 1.0));
 	verts[7] = glm::vec3(trans*glm::vec4(halfWidths.x, -halfWidths.y, halfWidths.z, 1.0));
-}
-
-//generic transformations
-void OBB::translate(glm::vec3 v) {
-	//keep translations on the right side
-	trans = glm::translate(v)*trans;
-}
-void OBB::rotate(glm::quat q) {
-	//not sure how I feel about this one
-		//keep rotations on the left side
-	trans = trans*glm::mat4_cast(q);
-}
-void OBB::scale(glm::vec3 s) {
-	//keep scaling on the right side; shouldn't fight with rotation,
-	trans = glm::scale(s)*trans;
-}
-
-glm::mat4 & OBB::getTransform()
-{
-	return trans;
-}
-
-//getting bounds, for use in coarse collision
-
-AABB OBB::getBounds() {
-	glm::vec3 x(1, 0, 0);
-	glm::vec3 y(0, 1, 0);
-	glm::vec3 z(0, 0, 1);
-
-	//could be optimized a bit, rather than just calling furthestpointindirection
-	glm::vec3 max(furthestPointInDirection(x).x, furthestPointInDirection(y).y, furthestPointInDirection(z).z);
-	glm::vec3 min(furthestPointInDirection(-x).x, furthestPointInDirection(-y).y, furthestPointInDirection(-z).z);
-
-	return AABB(min, max);
-}
-AABB OBB::getBounds(glm::mat4 &model) {
-	//just use the other one for now
-	return AABB(glm::vec3(0,0,0), glm::vec3(1,1,1));
 }
 
 //for GJK algorithm, for convex collisions
@@ -295,11 +296,11 @@ collideResult intersect(OBB &a, OBB &b) {
 
 	//Setup the axes to test against: all of the face normals, plus their cross products
 	for (int i = 0; i < 3; i++) {
-		axes[i] = glm::normalize(glm::mat3(a.trans)[i]);//should make sure that this does work the way I think it does //(also, may need to normalize them)
+		axes[i] = glm::normalize(glm::mat3(a.getTransform())[i]);//should make sure that this does work the way I think it does //(also, may need to normalize them)
 		//std::cout << i << ": " << axes[i].x << ", " << axes[i].y << ", " << axes[i].z << std::endl;
 	}
 	for (int i = 0; i < 3; i++) {
-		axes[i + 3] = glm::normalize(glm::mat3(b.trans)[i]);
+		axes[i + 3] = glm::normalize(glm::mat3(b.getTransform())[i]);
 		//std::cout << i + 3 << ": " << axes[i + 3].x << ", " << axes[i + 3].y << ", " << axes[i + 3].z << std::endl;
 	}
 	num_axes = 6;
@@ -695,7 +696,7 @@ void collision_EPA(Collider* a, Collider* b, std::vector<SupportPoint> sim, glm:
 
 //copies points over. should store adjacency info?
 //could be better in many ways
-ConvexHull::ConvexHull(glm::vec3* inpoints, int num, const glm::mat4 &trans) :num(num), trans(trans) {
+ConvexHull::ConvexHull(glm::vec3* inpoints, int num, const glm::mat4 &trans) :num(num), Collider(trans) {
 	points = (glm::vec3*)malloc(num * sizeof(glm::vec3));
 	memcpy(points, inpoints, num * sizeof(glm::vec3));
 }
@@ -725,42 +726,6 @@ glm::vec3 ConvexHull::furthestPointInDirection(glm::vec3 originaldir) {
 
 	//transfrom result back into world space as it leaves
 	return glm::vec3(trans*glm::vec4(result, 1.f));
-}
-
-void ConvexHull::translate(glm::vec3 diff) {
-	trans = glm::translate(diff)*trans;
-}
-
-void ConvexHull::rotate(glm::quat q) {
-	//not sure how I feel about this one
-	//keep rotations on the left side
-	trans = trans*glm::mat4_cast(q);
-}
-void ConvexHull::scale(glm::vec3 s) {
-	//keep scaling on the right side; shouldn't fight with rotation,
-	trans = glm::scale(s)*trans;
-}
-
-AABB ConvexHull::getBounds() {
-	glm::vec3 x(1, 0, 0);
-	glm::vec3 y(0, 1, 0);
-	glm::vec3 z(0, 0, 1);
-
-	//could be optimized a bit, rather than just calling furthestpointindirection
-	glm::vec3 max(furthestPointInDirection(x).x, furthestPointInDirection(y).y, furthestPointInDirection(z).z);
-	glm::vec3 min(furthestPointInDirection(-x).x, furthestPointInDirection(-y).y, furthestPointInDirection(-z).z);
-
-	return AABB(min, max);
-
-}
-
-AABB ConvexHull::getBounds(glm::mat4 &model) {
-	//just use the other one for now
-	return AABB(glm::vec3(0, 0, 0), glm::vec3(1, 1, 1));
-}
-
-glm::mat4 &ConvexHull::getTransform() {
-	return this->trans;
 }
 
 //Convex Hull
