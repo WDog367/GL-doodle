@@ -18,6 +18,7 @@ class Capsule;
 class ConvexHull;
 class AABB;
 class Entity;
+class ColliderGroup;
 
 struct collideResult{
 	bool isIntersect;
@@ -36,9 +37,14 @@ struct collideResult{
 		return isIntersect;
 	}
 
+	void invert() {
+		normal = normal* -1.f;
+	}
+
 };
 
 class Collider {
+	friend ColliderGroup;
 protected:
 	glm::mat4 trans;
 
@@ -65,6 +71,7 @@ public:
 	virtual collideResult intersect(OBB &a) = 0;
 	virtual collideResult intersect(Capsule &a) = 0;
 	virtual collideResult intersect(ConvexHull &a) = 0;
+	virtual collideResult intersect(ColliderGroup &a);
 
 	virtual bool isMoving();
 
@@ -79,6 +86,44 @@ public:
 	virtual void draw(const glm::mat4 &vp) = 0;
 #endif
 };
+
+class ColliderGroup : public Collider {
+public:
+std::vector<Collider*> children;
+
+public:
+	ColliderGroup(const glm::mat4 & trans, std::vector<Collider*> children);
+	ColliderGroup(std::vector<Collider*> children);
+	ColliderGroup(const glm::mat4 & trans);
+	void AddChild(Collider* child);
+
+	virtual ~ColliderGroup();
+public:
+
+	//generic transformations
+	virtual void translate(glm::vec3);
+	virtual void rotate(glm::quat);
+	virtual void scale(glm::vec3);
+
+	virtual AABB getBounds();
+
+	//GJK necessary interface
+	virtual glm::vec3 furthestPointInDirection(glm::vec3 dir);
+	//should also store adjacency information, it'll be usefull for getFurthestPoint()
+	//could also do it as an array of triangles, but that seems... bad
+
+	//functions for the double dispatch
+	virtual collideResult intersect(Collider &a);
+	virtual collideResult intersect(Sphere &a);
+	virtual collideResult intersect(OBB &a);
+	virtual collideResult intersect(Capsule &a);
+	virtual collideResult intersect(ConvexHull &a);
+
+#ifdef COLLIDERS_DRAWABLE
+	virtual void draw(const glm::mat4 &vp);
+#endif
+};
+
 
 class OBB : public Collider{
 public:
@@ -140,9 +185,11 @@ public:
 	virtual collideResult intersect(ConvexHull &a);
 
 #ifdef COLLIDERS_DRAWABLE
-//	static void init_drawable();
-//	static bool isdrawableinit;
-//	static class Mesh* drawable;
+	void init_drawable();
+	void clean_drawable();
+
+	bool isdrawableinit = false;
+	class Mesh* drawable = nullptr;
 	virtual void draw(const glm::mat4 &vp);
 #endif
 

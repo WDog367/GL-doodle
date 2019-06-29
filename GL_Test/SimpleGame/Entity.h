@@ -3,6 +3,7 @@
 #include "collision_utils.h"
 #include "mesh_utils.h"
 #include "OctTree.h"
+#include "glm/glm.hpp"
 
 class Entity {
 public:
@@ -11,12 +12,13 @@ public:
 	AABB bound;
 
 public:
-	Collider *collider;
-	Mesh *mesh;
+	Collider	*collider = nullptr;
+	Mesh		*mesh = nullptr;
 
 	bool hasMoved();
 
 	glm::vec3 loc;
+	glm::vec3 velocity;
 
 	void Tick(float delta);
 
@@ -27,4 +29,5 @@ public:
 	Entity(Collider*);
 
 	void translate(const glm::vec3 &);
+	void rotate(glm::quat &);
 };

@@ -9,8 +9,10 @@ uniform mat4 mvp;
 uniform mat3 m_3x3_inv_transp;
 uniform int collision;
 
+vec3 baseColour = vec3(1.0, 0.0, 0.0);
+
 void main(void) {
-  color = vec4(1.0, (collision == 0 ? 0.0 : 1.0) , 0.0, 1.0);
+  color = vec4(baseColour, 1.0);
 
   vec3 normalDirection = normalize(m_3x3_inv_transp * normal);
   vec3 lightDirection = normalize(vec3(1, 1, 1));

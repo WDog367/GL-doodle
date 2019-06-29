@@ -7,7 +7,9 @@ file(GLOB_RECURSE HEADER_FILES
 	${CMAKE_SOURCE_DIR}/SimpleGame/*.h)
 	
 file(GLOB_RECURSE SHADER_FILES
-	${CMAKE_SOURCE_DIR}/SimpleGame/*.glsl)
+	${CMAKE_SOURCE_DIR}/SimpleGame/*.glsl
+	${CMAKE_SOURCE_DIR}/RayTracer/*.vs
+	${CMAKE_SOURCE_DIR}/RayTracer/*.fs)
 	
 file(GLOB_RECURSE MODEL_FILES
 	${CMAKE_SOURCE_DIR}/SimpleGame/*.obj)
@@ -28,12 +30,14 @@ find_package(SDL2 REQUIRED)
 find_package(glm REQUIRED)
 find_package(glew CONFIG REQUIRED)
 find_package(eigen3 REQUIRED)
+find_package(freetype CONFIG REQUIRED)
 
 target_link_libraries(SimpleGame ${OPENGL_LIBRARIES})
 target_link_libraries(SimpleGame glm)
 target_link_libraries(SimpleGame GLEW::glew_s)
 target_link_libraries(SimpleGame SDL2::SDL2 SDL2::SDL2main)
 target_link_libraries(SimpleGame Eigen3::Eigen)
+target_link_libraries(SimpleGame freetype)
 
 # Copy DLLs to output folder on Windows
 get_target_property(LINKED_LIBRARIES SimpleGame INTERFACE_LINK_LIBRARIES)

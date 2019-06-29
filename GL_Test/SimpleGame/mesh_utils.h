@@ -24,13 +24,8 @@ public:
 
 	GLuint drawShape;
 
-	GLuint uniform_collision;
-
 	//this data is stored in VBO's,
 	//not strictly necessary to have application-accessible copies
-	//may make this a 'mutable Mesh' subclass, to handle "morphing" the mesh
-	//std::vector<float> vertices;
-	//std::vector<float> indices;
 public:
 	unsigned int vCount;
 	
@@ -46,8 +41,6 @@ public:
 
 	void updateMesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum);
 	void updateProgram(GLuint program);//also indices of vertex and element attributes as parameters?
-
-	int collision = false;
 
 	GLuint getProgram();
 };

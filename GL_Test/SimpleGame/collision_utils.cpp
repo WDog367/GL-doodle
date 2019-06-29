@@ -75,6 +75,17 @@ AABB Collider::getBounds() {
 
 }
 
+collideResult Collider::intersect(ColliderGroup &a) {
+	collideResult result;
+	for (Collider* collider : a.children) {
+		result = collider->intersect(*this);
+		if (result) {
+			return result;
+		}
+	}
+	return result;
+}
+
 //OBB functions
 OBB::OBB(glm::vec3 hw, glm::mat4 &trans) :halfWidths(hw), Collider(trans) {
 }
@@ -746,7 +757,52 @@ collideResult ConvexHull::intersect(ConvexHull &a) {
 }
 
 //prolly don't ever use this one, until it's actually efficient
+void ConvexHull::init_drawable() {
+	if (isdrawableinit) {
+		return;
+	}
+	GLfloat *vertices = new GLfloat[num * 3];
+
+	for (int i = 0; i < num; i++) {
+		vertices[3 * i + 0] = points[i].x;
+		vertices[3 * i + 1] = points[i].y;
+		vertices[3 * i + 2] = points[i].z;
+	}
+
+	GLuint *elements = new GLuint[(num - 1) * 2];
+	for (int i = 0; i < num - 1; i++) {
+		elements[2 * i + 0] = i;
+		elements[2 * i + 1] = i + 1;
+	}
+
+	struct shaderInfo shaders[] = { { GL_VERTEX_SHADER, "vs_wireframe.glsl" },
+	{ GL_FRAGMENT_SHADER, "fs_wireframe.glsl" } };
+	GLuint program = LoadProgram(shaders, 2);
+
+	drawable = new Mesh(vertices, num * 3, elements, (num - 1) * 2, program, GL_LINES);
+
+	isdrawableinit = true;
+}
+
+void ConvexHull::clean_drawable() {
+	delete drawable;
+}
+
 void ConvexHull::draw(const glm::mat4 &vp) {
+	using namespace std;
+	init_drawable();
+
+	GLuint program = drawable->getProgram();
+	glUseProgram(program);
+
+	//set the colour value of the program (probably need a better system to do this in the mesh)
+	GLuint uniform_colour = getUniform(program, "colour");
+	glUniform3fv(uniform_colour, 1, glm::value_ptr(colour));
+
+	drawable->Draw(vp*trans);
+
+	return;
+#if 0
 	using namespace std;
 
 	GLuint vao;
@@ -821,6 +877,116 @@ void ConvexHull::draw(const glm::mat4 &vp) {
 
 	delete[] vertices;
 	delete[] elements;
+#endif
+}
+
+//############################# Collider Group
+ColliderGroup::ColliderGroup(const glm::mat4 & trans, std::vector<Collider*> children): Collider(trans), children(children){}
+ColliderGroup::ColliderGroup(std::vector<Collider*> children) : ColliderGroup(glm::mat4(), children) {};
+ColliderGroup::ColliderGroup(const glm::mat4 & trans) : ColliderGroup(trans, std::vector<Collider*>()){};
+
+ColliderGroup::~ColliderGroup() {
+	//cleanup childredn
+	for (Collider* child : children) {
+		delete child;
+	}
+}
+
+void ColliderGroup::AddChild(Collider* child) {
+	children.push_back(child);
+}
+
+// todo: this shouldn't ever actually be called or needed.
+// the fact that this is the case makes me thnink I should use a different way of handling
+// collider hierarchy
+glm::vec3 ColliderGroup::furthestPointInDirection(glm::vec3 originaldir) {
+//	std::cerr << std::string(__FUNCTION__) << std::endl;
+//	assert(false);
+	glm::vec3 result = glm::vec3(0,0,0);
+	glm::vec3 tempResult;
+	return result;
+}
+
+//use template function??(not feasable for other types) or macro?
+collideResult ColliderGroup::intersect(Collider &a) {
+	return a.intersect(*this);
+}
+
+collideResult ColliderGroup::intersect(OBB &a) {
+	collideResult result;
+	for (Collider* child : children) {
+		result = child->intersect(a);
+		if (result) {
+			break;
+		}
+	}
+	return result;
+}
+
+collideResult ColliderGroup::intersect(ConvexHull &a) {
+	collideResult result;
+	for (Collider* child : children) {
+		result = child->intersect(a);
+		if (result) {
+			break;
+		}
+	}
+	return result;
+}
+
+collideResult ColliderGroup::intersect(Sphere &a) {
+	return false;
+}
+collideResult ColliderGroup::intersect(Capsule &a) {
+	return false;
+}
+
+AABB ColliderGroup::getBounds() {
+	if (children.size() == 0) {
+		return AABB();
+	}
+
+	AABB finalbounds;
+	AABB currentBounds;
+	finalbounds = (*(children.begin()))->getBounds();
+	for (Collider* child : children) {
+		currentBounds = child->getBounds();
+#define REPLACE(vec, p, sign) if(finalbounds.vec.p sign currentBounds.vec.p) finalbounds.vec.p = currentBounds.vec.p;
+		REPLACE(min, x, > );
+		REPLACE(min, y, >);
+		REPLACE(min, z, >);
+		REPLACE(max, x, <);
+		REPLACE(max, y, <);
+		REPLACE(max, z, <);
+	}
+	return finalbounds;
+}
+
+void ColliderGroup::draw(const glm::mat4 &vp) {
+	for (Collider* child : children) {
+		child->draw(vp);
+	}
+}
+
+void ColliderGroup::translate(glm::vec3 diff) {
+	Collider::translate(diff);
+	for (Collider* child : children) {
+		child->translate(diff);
+	}
+}
+void ColliderGroup::rotate(glm::quat diff) {
+	glm::mat4 inv = glm::inverse(trans);
+	Collider::rotate(diff);
+	for (Collider* child : children) {
+		child->trans = trans*inv*child->trans;
+	}
+}
+void ColliderGroup::scale(glm::vec3 diff) {
+	glm::mat4 inv = glm::inverse(trans);
+	Collider::scale(diff);
+	for (Collider* child : children) {
+		child->trans = trans*inv*child->trans;
+	}
 }
 
 #if 0

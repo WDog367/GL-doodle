@@ -90,7 +90,6 @@ Mesh::Mesh(GLuint program) {
 	glEnableVertexAttribArray(attrib_vertices);
 
 	uniform_Matrix = getUniform(program, "mvp");
-	uniform_collision = getUniform(program, "collision");
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -139,8 +138,6 @@ Mesh::Mesh(char *fileName, GLuint prog) {
 
 	uniform_Matrix = getUniform(program, "mvp");
 
-	uniform_collision = getUniform(program, "collision");
-
 	uniform_m_3x3_inv_transp = getUniform(program, "m_3x3_inv_transp");
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -174,8 +171,6 @@ Mesh::Mesh(const GLfloat *vertices, int vNum, const GLuint *elements, int eNum, 
 
 	uniform_Matrix = getUniform(program, "mvp");
 
-	uniform_collision = getUniform(program, "collision");
-
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
@@ -202,8 +197,7 @@ void Mesh::Draw(const glm::mat4 &vp, const glm::mat4 &model) {
 
 	glBindVertexArray(vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_elements);
-	glUniformMatrix4fv(uniform_Matrix, 1, GL_FALSE, glm::value_ptr(mvp));
-	glUniform1i(uniform_collision, (int)(collision));
+	glUniformMatrix4fv(uniform_Matrix, 1, GL_FALSE, glm::value_ptr(mvp));;
 
 	glUniformMatrix3fv(uniform_m_3x3_inv_transp, 1, GL_FALSE, glm::value_ptr(m_3x3_inv_transp));
 
@@ -302,6 +296,7 @@ void loadObj(std::vector<float> &vertices, std::vector<unsigned int> &elements, 
 		}
 	}
 
+	//calculate normals
 	normals.resize(vertices.size(), glm::vec3(0.0, 0.0, 0.0));
 	for (int i = 0; i < elements.size(); i += 3)
 	{
