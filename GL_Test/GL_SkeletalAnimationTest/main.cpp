@@ -16,6 +16,7 @@
 ///skeletal stuff
 
 //custom headers
+#include "PROJECT_OPTIONS.h"
 #include "file_utils.h"
 #include "shader_utils.h"
 #include "armature_utils.h"
@@ -40,7 +41,7 @@ Skeletal_Mesh *skeletor;
 
 Armature *armie;
 std::vector<Skeletal_Mesh *> ugh;
-int num = 5;
+int num = 0;
 
 Mesh *testMesh;
 
@@ -207,7 +208,8 @@ std::string getFile(int &curGroup, int &curFile){
 		fileName.append(ntos(curFile));
 		fileName.append(".bvh");
 
-		testFile.open(fileName.c_str());
+		string full_filename = string(RESOURCE_DIR "/") + string(fileName);
+		testFile.open(full_filename);
 		if (!testFile) {
 			if (iterations == 0) {
 				curFile++;

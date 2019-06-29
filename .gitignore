@@ -27,12 +27,6 @@
 *.out
 *.app
 
-#other garbage
-*.sdf
-*.pdb
-*/Debug/*
-*\Debug\*
-Debug/
-*.bvh
-*.obj
-
+# Build Directories
+build/*
+*/build/*

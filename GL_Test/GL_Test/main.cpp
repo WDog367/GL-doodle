@@ -5,7 +5,11 @@
 #include <vector>
 #include "math.h"
 #include "GL/glew.h"
-#include "GL/freeglut.h"//may want to start using "GL/glut.h" to wean off of freeglut exclusive stuff?
+
+// no more glut..
+//#include "GL/freeglut.h"//may want to start using "GL/glut.h" to wean off of freeglut exclusive stuff?
+#include "SDL.h"
+#include "PROJECT_OPTIONS.h"
 #include "glm/glm.hpp"//includes most (if not all?) of GLM library
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -38,8 +42,9 @@ void loadObj(vector <float> &vertices, vector <unsigned int> &elements, char *fi
 	int in_int;
 	float in_float;
 
-	file.open(fileName);
-	if (!fileName) {
+	string full_filename = string(RESOURCE_DIR "/") + string(fileName);
+	file.open(full_filename);
+	if (!file) {
 		cerr << "Error loading .obj: " << fileName << endl;
 		return;
 	}
@@ -164,14 +169,14 @@ bool init() {
 	glUseProgram(program);
 	
 
-	timeLast = glutGet(GLUT_ELAPSED_TIME);
+	timeLast = SDL_GetTicks();
 	return true;
 }
 
 void idle() {
 	//updating the matrics (i.e. animation) done in the idle function
 
-	timeCurr = glutGet(GLUT_ELAPSED_TIME);
+	timeCurr = SDL_GetTicks();
 	float angle = (timeCurr - timeLast) / 1000.0*(3.14159265358979323846) / 4;
 
 	//model matrix: transforms local model coordinates into global world coordinates
@@ -187,8 +192,6 @@ void idle() {
 	glm::mat4 mvp = projection*view*model;//combination of model, view, projection matrices
 
 	glUniformMatrix4fv(uniform_matrix, 1, GL_FALSE, glm::value_ptr(mvp));
-
-	glutPostRedisplay();
 }
 
 void display() {
@@ -210,12 +213,10 @@ void free_res() {
 }
 
 int main(int argc, char *argv[]) {
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGBA);
-	glutInitWindowSize(600, 480);
-	glutInitContextVersion(4, 3);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
-	glutCreateWindow("Test Display");
+	SDL_Window* window;
+	SDL_Init(SDL_INIT_VIDEO);
+	window = SDL_CreateWindow("Test Display", 100, 100, 640, 480, SDL_WINDOW_OPENGL);
+	SDL_GL_CreateContext(window);
 
 	glewExperimental = true;
 	if (glewInit()) {
@@ -227,10 +228,17 @@ int main(int argc, char *argv[]) {
 	init();
 
 	glEnable(GL_DEPTH_TEST);
-	glutDisplayFunc(display);
-	glutIdleFunc(idle);
-
-	glutMainLoop();
-	glutPostRedisplay();
+	bool run = true;
+	while (run) {
+		//polling for events
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_QUIT) run = false;
+		}
+		idle();
+		display();
+		SDL_GL_SwapWindow(window);
+	}
 	free_res();
+	return 0;
 }

@@ -5,13 +5,14 @@
 #include <vector>
 #include "math.h"
 #include "GL/glew.h"
-#include "GL/freeglut.h"//may want to start using "GL/glut.h" to wean off of freeglut exclusive stuff?
+#include "SDL.h"
 #include "glm/glm.hpp"//includes most (if not all?) of GLM library
 #include "glm/gtx/transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
 
 //custom headers
+#include "PROJECT_OPTIONS.h"
 #include "shader_utils.h"
 
 //TODO
@@ -47,8 +48,9 @@ void loadObj(vector <float> &vertices, vector <unsigned int> &elements, char *fi
 	int in_int;
 	float in_float;
 
-	file.open(fileName);
-	if (!fileName) {
+	string full_filename = string(RESOURCE_DIR "/") + string(fileName);
+	file.open(full_filename);
+	if (!file) {
 		cerr << "Error loading .obj: " << fileName << endl;
 		return;
 	}
@@ -250,14 +252,14 @@ bool Aliens::CheckHit(float x, float y, float w, float h) {
 	return false;
 }
 
-void handleKeyDown(unsigned char key, int x, int y) {
+void handleKeyDown(unsigned char key) {
 	if (command.find((char)key) == -1) {
 		command.push_back(key);
 		cout << "key down: " << key << " command string: " << command << endl;
 	}
 
 }
-void handleKeyUp(unsigned char key, int x, int y) {
+void handleKeyUp(unsigned char key) {
 	command.erase(command.find(key), 1);
 	cout << "key up: " << key << " command string: " << command << endl;
 }
@@ -276,13 +278,13 @@ bool init() {
 	aliens = new Aliens();
 
 	glUseProgram(program);
-	timeLast = glutGet(GLUT_ELAPSED_TIME);
+	timeLast = SDL_GetTicks();
 
 	return true;
 }
 //recompile
 void idle() {
-	timeCurr = glutGet(GLUT_ELAPSED_TIME);
+	timeCurr = SDL_GetTicks();
 
 	aliens->Move(timeCurr);
 	if (bulletFired) {
@@ -313,7 +315,7 @@ void idle() {
 
 	timeLast = timeCurr;
 
-	glutPostRedisplay();
+	// glutPostRedisplay();
 }
 
 void display() {
@@ -333,12 +335,10 @@ void free_res() {
 }
 
 int main(int argc, char *argv[]) {
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGBA);
-	glutInitWindowSize(600, 480);
-	glutInitContextVersion(4, 3);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
-	glutCreateWindow("Test Display");
+	SDL_Window* window;
+	SDL_Init(SDL_INIT_VIDEO);
+	window = SDL_CreateWindow("Test Display", 100, 100, 640, 480, SDL_WINDOW_OPENGL);
+	SDL_GL_CreateContext(window);
 
 	glewExperimental = true;
 	if (glewInit()) {
@@ -350,13 +350,20 @@ int main(int argc, char *argv[]) {
 	init();
 
 	glEnable(GL_DEPTH_TEST);
-	glutDisplayFunc(display);
-	glutIdleFunc(idle);
-	glutKeyboardFunc(handleKeyDown);
-	glutKeyboardUpFunc(handleKeyUp);
+	bool run = true;
+	while (run) {
+		//polling for events
+		SDL_Event event;
+		while (SDL_PollEvent(&event)) {
+			if (event.type == SDL_QUIT) run = false;
+			if (event.type == SDL_KEYDOWN) handleKeyDown(event.key.keysym.sym);
+			if (event.type == SDL_KEYUP) handleKeyUp(event.key.keysym.sym);
+		}
+		idle();
+		display();
+		SDL_GL_SwapWindow(window);
+	}
 
-
-	glutMainLoop();
-	glutPostRedisplay();
 	free_res();
+	return 0;
 }

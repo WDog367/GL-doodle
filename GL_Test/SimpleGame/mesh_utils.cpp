@@ -1,5 +1,6 @@
 #include "mesh_utils.h"
 #include "shader_utils.h"
+#include "PROJECT_OPTIONS.h"
 
 #include <vector>
 #include <string>
@@ -260,8 +261,8 @@ void loadObj(std::vector<float> &vertices, std::vector<unsigned int> &elements, 
 	int in_int;
 	float in_float;
 
-	file.open(fileName);
-	if (!fileName) {
+	file.open(string(RESOURCE_DIR "/") + string(fileName));
+	if (!file) {
 		cerr << "Error loading .obj: " << fileName << endl;
 		return;
 	}

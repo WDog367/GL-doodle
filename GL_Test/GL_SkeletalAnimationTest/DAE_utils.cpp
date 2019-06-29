@@ -9,6 +9,7 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "math.h"
 
+#include "PROJECT_OPTIONS.h"
 #include "armature_utils.h"
 #include "mesh_utils.h"
 
@@ -491,7 +492,8 @@ void loadDAE(std::vector<GLfloat> &vertices, std::vector<GLuint> &elements, std:
 	XMLDocument doc;
 	XMLElement *geometry;
 
-	doc.LoadFile(filename);
+	string full_filename = string(RESOURCE_DIR "/") + string(filename);
+	doc.LoadFile(full_filename.c_str());
 	geometry = doc.FirstChildElement()->FirstChildElement("library_geometries")->FirstChildElement("geometry");
 	DAELoadGeometry(vertices, elements, normals, geometry);
 }
@@ -528,7 +530,8 @@ Animation_Sampler * loadDAEAnim(const char *filename) {
 	std::string search;
 	DAESource source;
 
-	doc.LoadFile(filename);
+	std::string full_filename = std::string(RESOURCE_DIR "/") + std::string(filename);
+	doc.LoadFile(full_filename.c_str());
 	library = doc.RootElement()->FirstChildElement("library_animations");
 
 	DAELoadAnimLibrary(time, trans, names, library);
@@ -584,7 +587,8 @@ Skeletal_Mesh* loadDAESkelMesh(const char *filename, GLuint program) {
 	Skeletal_Mesh* mesh;
 
 	//the meat of it
-	doc.LoadFile(filename);
+	string full_filename = string(RESOURCE_DIR "/") + string(filename);
+	doc.LoadFile(full_filename.c_str());
 
 	//getting general information about the file
 	asset = doc.FirstChildElement()->FirstChildElement("asset");

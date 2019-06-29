@@ -1,4 +1,6 @@
 #include "shader_utils.h"
+#include "PROJECT_OPTIONS.h"
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -13,7 +15,7 @@ GLuint LoadShader(GLenum type, const char *fileName) {
 	string line;
 	GLint compiled;
 
-	fsource.open(fileName);
+	fsource.open(string(RESOURCE_DIR "/") + string(fileName));
 	if (!fsource) {//not 100% sure if this is a valid thing
 		cerr << fileName << ": Can't open shader source" << endl;
 		return 0;

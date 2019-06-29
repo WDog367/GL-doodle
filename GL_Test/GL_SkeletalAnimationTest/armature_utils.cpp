@@ -1,3 +1,5 @@
+#include "PROJECT_OPTIONS.h"
+
 #include "armature_utils.h"
 #include "shader_utils.h"
 
@@ -503,7 +505,8 @@ bool Armature::loadBVHArm(const char *fileName) {
 	std::vector <int> channelMapIndex;
 	std::vector<bool> mapTypeIsRotation;
 
-	file.open(fileName);
+	string full_filename = string(RESOURCE_DIR "/") + string(fileName);
+	file.open(full_filename);
 	if (!file) {
 		std::cerr << "Error loading file: " << fileName << std::endl;
 		return false;
@@ -669,8 +672,8 @@ bool Armature::loadBVHAnim(const char *fileName) {
 
 	int index = -1;
 
-
-	file.open(fileName);
+	std::string full_filename = std::string(RESOURCE_DIR "/") + std::string(fileName);
+	file.open(full_filename);
 	if (!file) {
 		std::cerr << "Error loading file: " << fileName << std::endl;
 		return false;

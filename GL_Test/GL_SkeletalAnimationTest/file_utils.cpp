@@ -1,4 +1,5 @@
 #include "file_utils.h"
+#include "PROJECT_OPTIONS.h"
 
 #include <vector>
 #include <iostream>
@@ -17,8 +18,9 @@ void loadObj(vector<float> &vertices, vector<unsigned int> &elements, char *file
 	int in_int;
 	float in_float;
 
-	file.open(fileName);
-	if (!fileName) {
+
+	file.open(string(RESOURCE_DIR "/") + string(fileName));
+	if (!file) {
 		cerr << "Error loading .obj: " << fileName << endl;
 		return;
 	}

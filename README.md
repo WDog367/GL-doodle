@@ -1,13 +1,15 @@
 # GL-doodle
-Basic OpenGL testing and experimenting
+Repo for jiggering with OpenGL and related.
 
-using:  
-        freeglut: http://freeglut.sourceforge.net/
-        glew: http://glew.sourceforge.net/
-        glm: http://sourceforge.net/projects/ogl-math/
-        
-        (I'm pretty sure those links are good)
+Some of the projects have dependcies on:
 
-I'm not sure how well it works when you download .sln files, but I have it them set up to look in c:\MSVC for the extracted libraries and headers, so put them there, and it might work?
+- [glew](http://glew.sourceforge.net/)
+- [glm](https://glm.g-truc.net/0.9.9/index.html)
+- [sdl2](https://www.libsdl.org/)
+- [tinyxml2](http://www.grinninglizard.com/tinyxml2/)
+- [glfw3](https://www.glfw.org/)
+- [eigen3](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 
-also, make sure you but the glew and glut .dll's in the folder with the compiled application for it to work
+
+Recently rejiggered to use CMake to generate build files (the code is still bad, though).
+If you have these dependcies compiled and installed properly CMake should be able to find them and link them in.
