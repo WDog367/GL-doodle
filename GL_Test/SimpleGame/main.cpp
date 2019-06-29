@@ -42,7 +42,7 @@ std::vector<glm::vec3> dots;
 glm::vec3 playerpos = glm::vec3(0, 0, 0);
 
 glm::vec3 cameraPos = glm::vec3(0, 0, 10);
-glm::quat cameraRot = glm::quat();
+glm::quat cameraRot = glm::quat(0, 0, 0, 1);
 
 void drawLine(const glm::vec3 pos, glm::vec3 pos2, glm::mat4 &mvp, glm::vec3 colour = glm::vec3(0, 0, 0)) {
 	using namespace std;
@@ -582,9 +582,9 @@ int main(int argc, char *argv[]) {
 		//calculate camera position
 		cameraPos = glm::vec3(glm::translate(glm::mat4(1.0), glm::vec3(Entitys.back()->collider->getTransform()[3]))*(cameraRot*glm::vec4(0, 0, 10, 1.0)));
 
-		glm::mat4 view = glm::inverse(glm::mat4_cast(cameraRot))*glm::translate(glm::mat4(1.0), -cameraPos);
+		glm::mat4 view = glm::inverse(glm::mat4_cast(cameraRot)) * glm::translate(glm::mat4(1.0), -cameraPos);
 		glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 1000.0f);
-		glm::mat4 vp = projection*view;//combination of model, view, projection matrices
+		glm::mat4 vp = projection * view;//combination of model, view, projection matrices
 
 									   //process collision results
 		for (int i = 0; i < collisionList.size(); i++) {
