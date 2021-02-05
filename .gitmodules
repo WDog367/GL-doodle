@@ -1,0 +1,6 @@
+[submodule "ThirdParty/dear-imgui"]
+	path = ThirdParty/dear-imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "ThirdParty/stb"]
+	path = ThirdParty/stb
+	url = https://github.com/nothings/stb.git
