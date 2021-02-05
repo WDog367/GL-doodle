@@ -1,0 +1,106 @@
+~~ Compilation ~~
+run `cmake` and build with chosen build tools
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some code in this project were originally made as a project for course work at the University of Waterloo.
+
+Under University of Waterloo Policy 73 IP for work created in the course of learning (Scholarly Work) is owned by the creator
+(https://uwaterloo.ca/secretariat/policies-procedures-guidelines/policies/policy-73-intellectual-property-rights)
+
+original source can be found at private repo on university server (request for permission required for access):
+https://git.uwaterloo.ca/wdbrown/cs488-assignments
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Sounds:
+blaster.wav - https://freesound.org/people/original_sound/sounds/376816/ ; License: https://creativecommons.org/licenses/by/3.0/
+vapor.wav - https://freesound.org/people/Mrthenoronha/sounds/399904/ ; License https://creativecommons.org/publicdomain/zero/1.0/
+bang.wav - https://freesound.org/people/DWOBoyle/sounds/143605/ License https://creativecommons.org/licenses/by/3.0/
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+HDR Images taken from HDRIHaven.com
+License is CC0: public doman, free to use
+License: https://hdrihaven.com/p/license.php
+
+Image Sources:
+https://hdrihaven.com/hdri/?c=clear&h=noon_grass
+https://hdrihaven.com/hdri/download.php?h=greenwich_park&r=1k
+https://hdrihaven.com/hdri/download.php?h=eilenriede_park&r=1k
+https://hdrihaven.com/hdri/download.php?h=street_lamp&r=1k
+https://hdrihaven.com/hdri/?c=low%20contrast&h=satara_night_no_lamps
+https://hdrihaven.com/hdri/?c=low%20contrast&h=syferfontein_0d_clear
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LibStb library included to load HDR images.
+retrieved from: https://github.com/nothings/stb
+License is: MIT license; free to use 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CSM reference: https://docs.microsoft.com/en-us/windows/win32/dxtecharts/cascaded-shadow-maps
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+IrrKlang library included to play sounds. Compiled binary is included, as library is closed source
+License is free to use in non commercial project
+retrieved from: https://www.ambiera.com/irrklang/downloads.html
+License: https://www.ambiera.com/irrklang/license.html
+`
+    irrKlang's source codes, documentation and binaries contained within the distributed archive are copyright © Nikolaus Gebhardt / Ambiera 2001-2019.
+    The contents of the irrKlang distribution archive may not be redistributed, reproduced, modified, transmitted, broadcast, published or adapted in any way, shape or form, without the prior written consent of the owner, Nikolaus Gebhardt.
+    The irrKlang.dll, irrKlang.so and libirrklang.dylib files may be redistributed without the authors prior permission in non-commercial products, and must remain unmodified except for compressing the file.
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ''AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+BVH trees implemented using reference:
+"Physically Based Rendering, Third Edition", Matt Pharr, Wenzel Jakob, Greg Humphreys, 2018
+retrieved from: http://www.pbr-book.org/
+Original Source License and Copyright:
+`
+    Copyright (c) 1998-2015, Matt Pharr, Greg Humphreys, and Wenzel Jakob.
+    All rights reserved.
+    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+    Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE
+`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Refractive materials and soft-reflection implemented partially using reference:
+"Raytracing in a Weekend", Peter Shirley, 2018
+retrieved from: https://www.realtimerendering.com/raytracing/Ray%20Tracing%20in%20a%20Weekend.pdf
+original source License found at: 
+https://github.com/RayTracing/InOneWeekend/blob/master/COPYING.txt
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+cow image retrieved from:
+https://commons.wikimedia.org/wiki/File:Cow_female_black_white.jpg
+Image is in the Public Domain, and free to use
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dirt texture and normal map retrieved from textures.com
+Terms of use: https://www.textures.com/terms-of-use.html
+relavent section:
+    ...
+    6.1
+        Content downloaded may be used for personal and commercial use (provided the use is in compliance with these terms and conditions).
+    6.2
+        You are permitted to:
+        (a)
+        use Content in 2D or 3D computer graphics, website design, advertising banners, movies, television shows and printed media;
+        (b)
+        incorporate the Content in computer games and 3D models and 3D scenes;
+    ...
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+tree models retrieved from:
+(tree1.obj, tree1_leaves.obj, etc.)
+https://free3d.com/3d-model/realistic-tree-pack-3-trees-95419.html
+License from source: Personal Use ("free to use or modify for anything, including commercial projects")
