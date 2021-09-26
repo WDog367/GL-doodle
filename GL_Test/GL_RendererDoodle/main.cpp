@@ -360,6 +360,7 @@ void idle() {
 		glm::mat4 view = glm::lookAt(glm::vec3(0.0, 0.0, -4.0), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
 		camera_matrix = glm::rotate(camera_pitch, glm::vec3(1.f, 0.f, 0.f)) * glm::rotate(camera_yaw, glm::vec3(0.f, 1.f, 0.f));
 		view = glm::translate(glm::vec3{ 0.f, 0.f, -camera_truck }) * camera_matrix * glm::translate(-center);
+		camera_matrix = view;
 
 		//projection matrix: transforms view space coordinates into 2d screen coordinates
 		glm::mat4 projection = glm::perspective(45.0f, 1.0f * 600 / 480, 0.1f, 100.0f);
@@ -574,8 +575,117 @@ class SDLInputHandler {
 				virtual bool onControllerButton(const SDL_ControllerButtonEvent& event) { return false; };
 };
 
+struct SceneInfo {
+	glm::vec3 eye = { 0, 0, 0 };
+	glm::vec3 view = { 0, 0, -1 };
+	glm::vec3 up = { 0, 1, 0 };
+	float fov = 50;
+	glm::vec3 ambient = { 0, 0, 0 };
+	std::list<Light*> lights = {};
+};
 
-SceneNode* defaultScene();
+SceneNode* simpleScene(struct SceneInfo& view_pos);
+SceneNode* bigCoatScene(struct SceneInfo& view_pos);
+
+#define defaultScene bigCoatScene
+
+int GLR_renderToWindow(SceneNode* root
+	, int w, int h
+	, const glm::vec3& eye
+	, const glm::vec3& view
+	, const glm::vec3& up
+	, double fovy
+	, const glm::vec3& ambient
+	, const std::list<Light*>& lights
+	);
+
+
+static std::string getEnumString(GLenum enum_val) {
+	std::string enum_str = "UNKNOWN";
+
+	switch (enum_val) {
+	case 0x0503: enum_str = "GL_STACK_OVERFLOW"; break;
+	case 0x0504: enum_str = "GL_STACK_UNDERFLOW"; break;
+
+	case 0x8242: enum_str = "GL_DEBUG_OUTPUT_SYNCHRONOUS"; break;
+	case 0x8243: enum_str = "GL_DEBUG_NEXT_LOGGED_MESSAGE_LENGTH"; break;
+	case 0x8244: enum_str = "GL_DEBUG_CALLBACK_FUNCTION"; break;
+	case 0x8245: enum_str = "GL_DEBUG_CALLBACK_USER_PARAM"; break;
+
+	case 0x8246: enum_str = "GL_DEBUG_SOURCE_API"; break;
+	case 0x8247: enum_str = "GL_DEBUG_SOURCE_WINDOW_SYSTEM"; break;
+	case 0x8248: enum_str = "GL_DEBUG_SOURCE_SHADER_COMPILER"; break;
+	case 0x8249: enum_str = "GL_DEBUG_SOURCE_THIRD_PARTY"; break;
+	case 0x824A: enum_str = "GL_DEBUG_SOURCE_APPLICATION"; break;
+	case 0x824B: enum_str = "GL_DEBUG_SOURCE_OTHER"; break;
+
+	case 0x824C: enum_str = "GL_DEBUG_TYPE_ERROR"; break;
+	case 0x824D: enum_str = "GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR"; break;
+	case 0x824E: enum_str = "GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR"; break;
+	case 0x824F: enum_str = "GL_DEBUG_TYPE_PORTABILITY"; break;
+	case 0x8250: enum_str = "GL_DEBUG_TYPE_PERFORMANCE"; break;
+	case 0x8251: enum_str = "GL_DEBUG_TYPE_OTHER"; break;
+	case 0x8268: enum_str = "GL_DEBUG_TYPE_MARKER"; break;
+	case 0x8269: enum_str = "GL_DEBUG_TYPE_PUSH_GROUP"; break;
+	case 0x826A: enum_str = "GL_DEBUG_TYPE_POP_GROUP"; break;
+
+	case 0x826B: enum_str = "GL_DEBUG_SEVERITY_NOTIFICATION"; break;
+
+	case 0x826C: enum_str = "GL_MAX_DEBUG_GROUP_STACK_DEPTH"; break;
+
+	case 0x826D: enum_str = "GL_DEBUG_GROUP_STACK_DEPTH"; break;
+
+	case 0x82E0: enum_str = "GL_BUFFER"; break;
+	case 0x82E1: enum_str = "GL_SHADER"; break;
+	case 0x82E2: enum_str = "GL_PROGRAM"; break;
+	case 0x82E3: enum_str = "GL_QUERY"; break;
+	case 0x82E4: enum_str = "GL_PROGRAM_PIPELINE"; break;
+	case 0x82E6: enum_str = "GL_SAMPLER"; break;
+	case 0x82E7: enum_str = "GL_DISPLAY_LIST"; break;
+
+	case 0x82E8: enum_str = "GL_MAX_LABEL_LENGTH"; break;
+	case 0x9143: enum_str = "GL_MAX_DEBUG_MESSAGE_LENGTH"; break;
+	case 0x9144: enum_str = "GL_MAX_DEBUG_LOGGED_MESSAGES"; break;
+
+	case 0x9145: enum_str = "GL_DEBUG_LOGGED_MESSAGES"; break;
+
+	case 0x9146: enum_str = "GL_DEBUG_SEVERITY_HIGH"; break;
+	case 0x9147: enum_str = "GL_DEBUG_SEVERITY_MEDIUM"; break;
+	case 0x9148: enum_str = "GL_DEBUG_SEVERITY_LOW"; break;
+	case 0x92E0: enum_str = "GL_DEBUG_OUTPUT"; break;
+	}
+	return enum_str;
+}
+
+static int getSeverityScore(GLenum severity_val) {
+	switch (severity_val) {
+	case GL_DEBUG_SEVERITY_HIGH: return 4;
+	case GL_DEBUG_SEVERITY_MEDIUM: return 3;
+	case GL_DEBUG_SEVERITY_LOW: return 2;
+	case GL_DEBUG_SEVERITY_NOTIFICATION: return 1;
+	default : return 0;
+	}
+}
+
+static void GLAPIENTRY
+MessageCallback(GLenum source,
+	GLenum type,
+	GLuint id,
+	GLenum severity,
+	GLsizei length,
+	const GLchar* message,
+	const void* userParam)
+{
+	std::string type_str = getEnumString(type);
+	std::string severity_str = getEnumString(severity);
+
+	static GLenum messageFilter = 4;
+	if (getSeverityScore(severity) >= messageFilter) {
+		fprintf(stderr, "GL CALLBACK: %s type = 0x%x %s, severity = 0x%x %s, message = %s\n",
+			(type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""),
+			type, type_str, severity, severity_str, message);
+	}
+}
 
 int main(int argc, char* argv[]) {
 		SDL_Window* window = nullptr;
@@ -588,7 +698,10 @@ int main(int argc, char* argv[]) {
 				SDL_Log("Unable to initialize SDL: %s", SDL_GetError());
 				return 1;
 		}
-		window = SDL_CreateWindow("Test Display", 100, 100, 640, 480, SDL_WINDOW_OPENGL);
+
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+		window = SDL_CreateWindow("Test Display", 100, 100, 640, 640, SDL_WINDOW_OPENGL);
 		if (!window) {
 				SDL_Log("Unable to create window");
 				return 1;
@@ -624,10 +737,42 @@ int main(int argc, char* argv[]) {
 		ImGui_ImplOpenGL3_Init("#version 330");
 
 
-		// setup scene 
-		defaultScene();
+		// setup scene
+		SceneInfo scene_info;
+		auto scene = defaultScene(scene_info);
+
+		// setup camera
+		glm::mat4 init_cam = glm::lookAt(scene_info.eye, scene_info.view, scene_info.up);
+
+		glm::quat look_quat = glm::toQuat(init_cam);
+		glm::vec3 look_dir = scene_info.view - scene_info.eye;
+		glm::vec3 look_pos = scene_info.view;
+		glm::vec3 cam_pos = scene_info.eye;
+		float cam_truck = glm::length(look_dir);
+
+		float pitch = glm::pitch(look_quat);
+		float yaw = glm::yaw(look_quat);
+
+		if (false && glm::sign(look_pos.y) != glm::sign(look_dir.y)) {
+			// set the center view to the intersection with ground plane
+			float projected_length = -cam_pos.y / look_dir.y;
+
+			cam_truck = projected_length * glm::length(look_dir);
+			look_pos = cam_pos + look_dir * projected_length;
+		}
+
+		camera_yaw = yaw;
+		camera_pitch = pitch;
+		camera_truck = cam_truck;
+		center = look_pos;
 
 		SDL_GL_MakeCurrent(window, gl_context);
+
+		// During init, enable debug output
+		glEnable(GL_DEBUG_OUTPUT);
+		glDebugMessageCallback(MessageCallback, 0);
+
+		glDebugMessageInsert(GL_DEBUG_SOURCE_APPLICATION, GL_DEBUG_TYPE_ERROR, 0, GL_DEBUG_SEVERITY_LOW, 5, "test");
 
 		// init app
 		init();
@@ -687,7 +832,44 @@ int main(int argc, char* argv[]) {
 				ImGui::SetCurrentContext(imgui_ctx_1);
 #endif
 				// draw scene
+#if 0
 				display();
+#else
+
+				glClearColor(1.f, 1.f, 1.f, 1.f);
+				glClearDepth(1.f);
+
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+				glDepthFunc(GL_LESS);
+				glDepthMask(GL_TRUE);
+				glEnable(GL_DEPTH_TEST);
+
+				glm::vec3 eye = glm::vec3(0, 0, 0);
+				glm::vec3 view = glm::vec3(0, 0, -1);
+				glm::vec3 up = glm::vec3(0, 1, 0);
+
+				glm::mat4 inv_view = glm::inverse(camera_matrix);
+
+				eye		= inv_view * glm::vec4(eye, 1.f);
+				view	= inv_view * glm::vec4(view, 1.f);
+				up		= inv_view * glm::vec4(up, 0.f);
+
+				GLR_renderToWindow(
+					scene, //SceneNode * root,
+					640, 640,// int w, int h,
+					eye, //const glm::vec3 & eye,
+					(eye + center) / 2.f, //const glm::vec3 & view,
+					up, //const glm::vec3 & up,
+					scene_info.fov, //double fovy,
+					scene_info.ambient, //const glm::vec3 & ambient,
+					scene_info.lights //const std::list<Light*>&lights
+					);
+#endif
+
+				// timestamp
+				std:cout << "time: " << SDL_GetTicks() - timeLast << std::endl;
+				timeLast = SDL_GetTicks();
 
 				// begin ui_frame
 				ImGui_ImplOpenGL3_NewFrame();

@@ -44,7 +44,7 @@ source_group("Shader Files" ${SHADER_FILES})
 source_group("3rdParty\\Dear IMGUI" FILES ${DEAR_IMGUI_FILES})
 source_group("3rdParty\\STB Image" FILES ${STB_FILES})
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES  ${HEADER_FILES} ${SOURCE_FILES})
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES  ${HEADER_FILES} ${SOURCE_FILES} ${SHADER_FILES})
 
 target_compile_definitions(${ProjectId} PRIVATE PROJECT_NAME="${ProjectId}")
 target_compile_definitions(${ProjectId} PRIVATE IMGUI_IMPL_OPENGL_LOADER_GLEW)

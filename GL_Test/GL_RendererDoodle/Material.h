@@ -9,15 +9,16 @@
 #include "Image.h"
 #include "Texture.h"
 
-class SceneNode;
+struct SceneNode;
 struct IntersectResult;
-class Light;
-class Image;
-class ShaderProgram;
+struct Light;
+struct Image;
 struct CameraRay;
 
 class Material {
 public:
+  id_code id;
+
   virtual ~Material();
 
   virtual glm::vec3 shade(

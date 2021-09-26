@@ -2,7 +2,7 @@
 
 out vec2 uv;
 
-vec3 positions[] = {
+vec3 positions[] = vec3[](
 	vec3(-1, -1, 0),
 	vec3( 1, -1, 0),
 	vec3( 1,  1, 0),
@@ -10,7 +10,7 @@ vec3 positions[] = {
 	vec3(-1,  1, 0),
 	vec3(-1, -1, 0),
 	vec3( 1,  1, 0)
-	};
+	);
 
 void main()
 {

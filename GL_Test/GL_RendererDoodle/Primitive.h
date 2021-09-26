@@ -25,7 +25,6 @@ public:
   virtual bool intersectSphere(IntersectResult& out_result, const glm::vec3 &pos, float radius) const { return false; }
 
   virtual NonhierBox getBounds() const = 0;
-
 };
 
 class Sphere : public Primitive {
@@ -63,6 +62,9 @@ public:
     return (glm::length2(pos - m_pos)) < (radius + m_radius) * (radius + m_radius); 
   }
   NonhierBox getBounds() const override;
+
+  const glm::vec3& getPos() { return m_pos; }
+  double getRad() { return m_radius; }
 
 private:
   glm::vec3 m_pos;

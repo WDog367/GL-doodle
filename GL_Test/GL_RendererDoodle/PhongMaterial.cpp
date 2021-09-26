@@ -155,6 +155,25 @@ glm::vec3 phongShading(const glm::vec3 &kd, const glm::vec3 &ks, double shinines
 		double dist = glm::length(lightVec);
 		glm::vec3 l = lightVec / float(dist);
 
+		float diffuse_strength = glm::max(0.f, glm::dot(n, l));
+
+		glm::vec3 r = -glm::normalize(glm::reflect(l, n)); // negate, so reflected vector points away from surface
+		float specular_strength = (float)glm::pow(glm::clamp(glm::dot(r, v), 0.f, 1.f), shininess);
+
+		float falloff = 1 / (light->falloff[0] + light->falloff[1] * dist + light->falloff[2] * dist * dist);
+
+		glm::vec3 diff_color = kd * light->colour * diffuse_strength * falloff;
+		glm::vec3 spec_color = ks * light->colour * specular_strength * falloff;
+
+		//const float low_diff = nextafterf(0, 1.0);
+		const float low_diff = 0.004;
+		glm::vec3 low_diff_vec = glm::vec3(low_diff, low_diff, low_diff);
+
+		// early exit to catch lights that won't contribute to final color
+		if (glm::all(glm::lessThan(diff_color * float(attenuation), low_diff_vec)) && glm::all(glm::lessThan(spec_color * float(attenuation), low_diff_vec))) {
+			continue;
+		}
+
 #ifdef SOFT_SHADOWS	// soft shadows
 		float lightRadius = SOFT_SHADOW_RADUIS;
 		float shad = softShadow(root, fragmentIntersection->position, l, dist, lightRadius, attenuation);
@@ -167,14 +186,9 @@ glm::vec3 phongShading(const glm::vec3 &kd, const glm::vec3 &ks, double shinines
 			continue;
 		}
 #endif
-
-		float diffuse_strength = glm::max(0.f, glm::dot(n, l));
-		float falloff = 1/(light->falloff[0] + light->falloff[1] * dist + light->falloff[2] * dist * dist);
 	
-		glm::vec3 r = -glm::normalize(glm::reflect(l, n)); // negate, so reflected vector points away from surface
-		float specular_strength = (float)glm::pow(glm::clamp(glm::dot(r, v), 0.f, 1.f), shininess);
-		color += shad * kd * light->colour * diffuse_strength * falloff;
-		color += shad * ks * light->colour * specular_strength * falloff;
+		color += shad * diff_color;
+		color += shad * spec_color;
 	}
 #ifndef DISABLE_REFLECTIONS
 	double strength = 0.25 * glm::length(ks);

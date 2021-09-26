@@ -4,16 +4,27 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/scalar_multiplication.hpp>
 
+#include "GL/glew.h"
+#include "SDL.h"
+
 #include <vector>
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <unordered_map>
 
 #include "Scene.h"
+#include "SceneUtil.h"
 #include "Material.h"
 #include "Image.h"
 #include "BVHTree.h"
 #include "FlatSceneNode.h"
+#include "Camera.h"
+
+#include "RenderOpenGL.h" // for GLR_Texture
+#include "shader_utils.h"
+
+#include "Asset.h"
 
 // Helper Classes
 
@@ -104,6 +115,7 @@ public:
 	}
 };
 
+//todo: divide into per-thread work buffers instead of single work buffer: may get perf improvement
 template<typename T, unsigned int size>
 class mt_buffer_single_producer
 {
@@ -121,6 +133,8 @@ public:
 	void produce(T item)
 	{
 		empty.acquire();
+
+		// note: no mutex locking, since this is a single producer buffer
 
 		data[write_idx] = item;
 		write_idx = (write_idx + 1) % size;
@@ -256,140 +270,7 @@ glm::vec3 rayColor(SceneNode* root,
 	return color;
 }
 
-static void gatherLightNodes(std::vector<Light>& out_lights, SceneNode* node, const glm::mat4& parentTransform = glm::mat4(1.0)) {
-	glm::mat4 nodeTransform = parentTransform * node->localTransform();
 
-	// todo: maybe handle encountering a BVH node as well...
-	if (node->m_nodeType == NodeType::LightNode) {
-
-		LightNode* light_node = static_cast<LightNode*>(node);
-		out_lights.emplace_back(*light_node->m_light);
-		out_lights.back().position = glm::vec3(nodeTransform * glm::vec4(light_node->m_light->position, 1.f));
-	}
-
-	for (SceneNode* child : node->children) {
-		gatherLightNodes(out_lights, child, nodeTransform);
-	}
-}
-
-
-class Camera /* : public SceneNode */ {
-	glm::vec3 eye;
-	glm::vec3 view;
-	glm::vec3 up;
-
-	uint32_t width;
-	uint32_t height;
-
-	// helpers for ray generation
-	glm::vec3 cam_dir;
-	glm::vec3 d_v;
-	glm::vec3 x_v;
-	glm::vec3 y_v;
-
-	double fovy;
-	double aspect;
-	float half_height;
-	float half_width;
-
-	glm::vec3 bottom_left;
-	glm::vec3 top_left;
-
-	double pixel_width;
-	double pixel_height;
-
-public:
-	Camera(const glm::vec3& eye, const glm::vec3& view, const glm::vec3& up, double fovy = 90, uint32_t width = 256, uint32_t height = 256)
-		: eye(eye)
-		, view(view)
-		, up(up)
-		, fovy(fovy)
-		, width(width)
-		, height(height)
-	{
-		double aspect = double(height) / double(width);
-
-		cam_dir = view - eye;
-		d_v = glm::normalize(cam_dir);
-		x_v = glm::normalize(glm::cross(d_v, up));
-		y_v = glm::normalize(glm::cross(x_v, d_v));
-
-		half_height = tan(glm::radians(fovy / 2.0));
-		half_width = half_height / aspect;
-
-		pixel_width = 2.0 * half_width / double(width);
-		pixel_height = 2.0 * half_height / double(height);
-
-		bottom_left = eye + d_v
-			- half_width * x_v
-			- half_height * y_v;
-
-		top_left = eye + d_v
-			- half_width * x_v
-			+ half_height * y_v;
-	}
-
-	CameraRay getRay(uint32_t x, uint32_t y) {
-		// note: add 0.5 so that ray is in pixel center
-		double s = (0.5 + double(x)) / double(width);
-		double t = (0.5 + double(y)) / double(height);
-
-		double s_n = double(0.5 + x + ((x % 2) ? 1 : -1)) / double(width);
-		double t_n = double(0.5 + y + ((y % 2) ? 1 : -1)) / double(height);
-
-		double diff_x = 1.0 / width;
-		double diff_y = 1.0 / height;
-
-		assert(s_n != s);
-		assert(t_n != t);
-
-		glm::vec3 frag_dir = top_left
-			+ x_v * (2.0 * half_width * s)
-			- y_v * (2.0 * half_height * t)
-			- eye;
-
-
-		glm::vec3 d_x = top_left
-			+ x_v * (2.0 * half_width * s_n)
-			- y_v * (2.0 * half_height * t)
-			- eye;
-
-		glm::vec3 d_y = top_left
-			+ x_v * (2.0 * half_width * s)
-			- y_v * (2.0 * half_height * t_n)
-			- eye;
-
-		CameraRay ray(Ray{ eye, frag_dir });
-		ray.dx = Ray{ eye, d_x };
-		ray.dy = Ray{ eye, d_y };
-		ray.hasDifferentials = true;
-
-		return ray;
-	}
-
-	CameraRay getRay(double s, double t) {
-		return getRay(
-			glm::clamp(static_cast<uint32_t>(s * width - 0.5), 0u, width - 1),
-			glm::clamp(static_cast<uint32_t>(t * height - 0.5), 0u, height - 1)
-		);
-	}
-
-};
-
-
-// main go
-#include "GL/glew.h"
-#include "SDL.h"
-#include "glm/glm.hpp"
-#include "glm/gtx/transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
-
-#include <iostream>
-#include <chrono>
-#include <thread>
-
-
-#include "shader_utils.h"
 
 int renderToWindow(
 	SceneNode* root,
@@ -404,9 +285,7 @@ int renderToWindow(
 	SDL_Window* window = nullptr;
 	SDL_GLContext gl_context = NULL;
 
-	// ASSUMING SDL_INIT Already Called ... */
-
-	window = SDL_CreateWindow("Render Display", 100, 100, 640, 480, SDL_WINDOW_OPENGL);
+	window = SDL_CreateWindow("Render Display", 100, 100, 640, 640, SDL_WINDOW_OPENGL);
 	if (!window) {
 		SDL_Log("Unable to create window");
 		return 1;
@@ -418,7 +297,9 @@ int renderToWindow(
 		SDL_Log("Unable to create GL context");
 		return 1;
 	}
-	
+
+	SDL_GL_MakeCurrent(window, gl_context);
+
 #if 1
 	// glew (must be done with OpenGL context)
 	glewExperimental = true; // needed for some extensions
@@ -432,15 +313,141 @@ int renderToWindow(
 	GLuint render_target_tex = 0xffffffff;
 	unsigned int num_levels = ceil(log2(glm::max(image.width(), image.height()))) + 1;
 
-	// generate result render target
-	glGenTextures(1, &render_target_tex);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, render_target_tex);
+	Texture renderTarget(image, false); //todo: generating mipmaps here crashes?
+	GLR_Texture GPU_renderTarget(&renderTarget);
+	GPU_renderTarget.genTexture();
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+	Image progressImage(image.w, image.h);
+	// todo: zero progress image
+	Texture progressTarget(progressImage, false);
+	GLR_Texture GPU_progressTarget(&progressTarget);
+	GPU_progressTarget.genTexture();
+
+	// setup shader program
+	shaderInfo shaders[] =
+	{ {GL_VERTEX_SHADER, "screenquad.vs"},
+	{GL_FRAGMENT_SHADER, "screenquadv2.fs" }
+	};
+	GLuint shader_program = LoadProgram(shaders, 2);
+	glUseProgram(shader_program);
+
+	GLint uniform = glGetUniformLocation(shader_program, "image");
+	glUniform1i(uniform, 0);
+
+	uniform = glGetUniformLocation(shader_program, "progressImage");
+	glUniform1i(uniform, 1);
+	
+	uniform = glGetUniformLocation(shader_program, "width");
+	glUniform1i(uniform, image.w);
+
+	uniform = glGetUniformLocation(shader_program, "height");
+	glUniform1i(uniform, image.h);
+
+
+	// render scene
+	// RenderRaytracer(root, image, eye, view, up, fovy, ambient, lights);
+
+	bool render_done = false;
+	auto render_work = [&]() {
+		RenderRaytracer(root, image, eye, view, up, fovy, ambient, lights, &progressImage);
+		render_done = true;
+	};
+	std::thread render_worker(render_work);
+
+
+	// NOTE: need to acknowledge any window events that happened during render
+	// , or Windows won't update the window surface
+	while (!render_done) {
+		{
+			SDL_Event event;
+			while (SDL_PollEvent(&event)) {
+				// printf("EVENT 0x%x", event.type);
+				///if (event.type == SDL_WINDOWEVENT) {
+				// 	printf(" window 0x%x : 0x%x", event.window.windowID, event.window.event);
+				// }
+				// printf("\n");
+			}
+		}
+
+		// draw to screen
+		GPU_renderTarget.uploadTexture(image);
+		GPU_progressTarget.uploadTexture(progressImage);
+
+		GPU_renderTarget.bindTexture(0);	
+		GPU_progressTarget.bindTexture(1);
+
+		glClearColor(0, 0, 0, 1);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		SDL_GL_SwapWindow(window);
+
+		glFinish();
+	}
+
+	getGLErrors();
+
+	render_worker.join();
+
+#if 0
+
+
+	// openGL context
+	SDL_GL_DeleteContext(gl_context);
+
+	// SDL
+	SDL_DestroyWindow(window);
+#endif
+}
+
+int renderToWindowv1(
+	SceneNode* root,
+	Image& image,
+	const glm::vec3& eye,
+	const glm::vec3& view,
+	const glm::vec3& up,
+	double fovy,
+	const glm::vec3& ambient,
+	const std::list<Light*>& lights
+) {
+	SDL_Window* window = nullptr;
+	SDL_GLContext gl_context = NULL;
+
+	window = SDL_CreateWindow("Render Display", 100, 100, 640, 640, SDL_WINDOW_OPENGL);
+	if (!window) {
+		SDL_Log("Unable to create window");
+		return 1;
+	}
+
+	// openGL context
+	gl_context = SDL_GL_CreateContext(window);
+	if (!gl_context) {
+		SDL_Log("Unable to create GL context");
+		return 1;
+	}
+
+	SDL_GL_MakeCurrent(window, gl_context);
+
+#if 1
+	// glew (must be done with OpenGL context)
+	glewExperimental = true; // needed for some extensions
+	GLenum glew_err = glewInit();
+	if (GLEW_OK != glew_err) {
+		SDL_Log("Unable to initialize GLEW: %s", glewGetErrorString(glew_err));
+		return 1;
+	}
+#endif
+
+	GLuint render_target_tex = 0xffffffff;
+	unsigned int num_levels = ceil(log2(glm::max(image.width(), image.height()))) + 1;
+
+	Texture renderTarget(image, false); //todo: generating mipmaps here crashes?
+	GLR_Texture GPU_renderTarget(&renderTarget);
+
+	// generate result render target
+	GPU_renderTarget.genTexture();
 
 	// setup shader program
 	shaderInfo shaders[] =
@@ -453,21 +460,52 @@ int renderToWindow(
 	glUniform1i(uniform, 0);
 
 	// render scene
-	RenderRaytracer(root, image, eye, view, up, fovy, ambient, lights);
+	// RenderRaytracer(root, image, eye, view, up, fovy, ambient, lights);
+	
+	bool render_done = false;
+	auto render_work = [&]() {
+		RenderRaytracer(root, image, eye, view, up, fovy, ambient, lights);
+		render_done = true;
+	};
+	std::thread render_worker(render_work);
 
-	// draw to screen
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, image.w, image.h, 0, GL_RGB, GL_FLOAT, image.data);
-	//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 1, 1, GL_RGB, GL_FLOAT, &color);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+	// NOTE: need to acknowledge any window events that happened during render
+	// , or Windows won't update the window surface
+	while (!render_done) {
+		{
+			SDL_Event event;
+			while (SDL_PollEvent(&event)) {
+				// printf("EVENT 0x%x", event.type);
+				///if (event.type == SDL_WINDOWEVENT) {
+				// 	printf(" window 0x%x : 0x%x", event.window.windowID, event.window.event);
+				// }
+				// printf("\n");
+			}
+		}
 
-	SDL_GL_SwapWindow(window);
+		// draw to screen
+		GPU_renderTarget.uploadTexture(image);
+		GPU_renderTarget.bindTexture(0);
+		//glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 1, 1, GL_RGB, GL_FLOAT, &color);
+
+		glClearColor(0, 0, 0, 1);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+
+		SDL_GL_SwapWindow(window);
+
+		glFinish();
+	}
+
+	render_worker.join();
+
+	getGLErrors();
 
 #if 0
-	std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+	
 
 	// openGL context
 	SDL_GL_DeleteContext(gl_context);
@@ -485,7 +523,8 @@ void RenderRaytracer(
 		const glm::vec3 & up,
 		double fovy,
 		const glm::vec3 & ambient,
-		const std::list<Light *> & lights
+		const std::list<Light *> & lights,
+		Image* progressImage
 	){
 	size_t h = image.height();
 	size_t w = image.width();
@@ -535,8 +574,21 @@ void RenderRaytracer(
 			threads[i] = std::thread(worker_thread);
 	}
 
-	for (uint32_t y = 0; y < h; ++y) {
-		for (uint32_t x = 0; x < w; ++x) {
+	// generate a list of all indices
+	std::vector<size_t> indices(h * w);
+	size_t ci = 0;
+	for (size_t& i : indices) { i = ci; ci++; }
+	std::random_shuffle(indices.begin(), indices.end());
+
+	ci = 0;
+	//for (uint32_t y = 0; y < h; ++y) {
+	//	for (uint32_t x = 0; x < w; ++x) {
+	for (size_t i : indices ) {
+		{
+			uint32_t x = i % w;
+			uint32_t y = i / w;
+
+			ci++;
 
 			auto pixel_func = [=, &cam, &image, &finished]() {
 
@@ -549,6 +601,10 @@ void RenderRaytracer(
 				glm::vec3 frag_color = rayColor(sceneToRender, ambient, complete_lights, ray);
 				image(x, y) = frag_color;
 
+				if (progressImage) {
+					(*progressImage)(x, y) = glm::vec3(1, 1, 1);
+				}
+
 				finished++;
 				return true;
 			};
@@ -556,12 +612,13 @@ void RenderRaytracer(
 			queue.produce(pixel_func);
 
 			// progress bar
-			float progress = float(y * w + x + 1 - max_threads) / float(w * h);
+			float progress = float(ci + 1 - max_threads) / float(w * h);
 			progressBar.update(progress);
 
 		}
 	}
 
+	// send poison pills
 	for (int i = 0; i < max_threads; i++)
 	{
 			queue.produce([]() {return false; });

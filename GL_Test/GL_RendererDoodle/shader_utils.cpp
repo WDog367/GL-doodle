@@ -4,6 +4,8 @@
 #include <fstream>
 #include <string>
 
+#include "Asset.h"
+
 using namespace std;
 
 GLuint LoadShader(GLenum type, const char *fileName) {
@@ -14,7 +16,7 @@ GLuint LoadShader(GLenum type, const char *fileName) {
 	string line;
 	GLint compiled;
 
-	string full_filename = string(RESOURCE_DIR "/") + string(fileName);
+	string full_filename = searchForAsset(fileName);
 	fsource.open(full_filename);
 	if (!fsource) {
 		cerr << fileName << ": Can't open shader source" << endl;

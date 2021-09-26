@@ -30,6 +30,7 @@ Image Image::loadPng(const std::string& filename) {
 	unsigned char* data = stbi_load(filename.c_str(), &x, &y, &n, 3);
 
 	Image img(x, y);
+	img.id = filename;
 
 	if (data) {
 

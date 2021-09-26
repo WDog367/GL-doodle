@@ -6,6 +6,8 @@
 #include "Material.h"
 #include "Image.h"
 
+#include "Camera.h"
+
 // ~~~~~~~~~~~~~~~
 #include <time.h>
 #include <iostream>
@@ -43,34 +45,6 @@ struct IntersectResult {
   Material* material;
 };
 
-struct Ray {
-  glm::vec3 o; // origin
-  glm::vec3 l; // length
-
-  inline Ray transformed(const glm::mat4& trans) const {
-    return Ray{ glm::vec3(trans * glm::vec4(o, 1.f)),  glm::vec3(trans * glm::vec4(l, 0.f)) };
-  }
-
-  friend Ray operator*(const glm::mat4& trans, const Ray& ray);
-
-  Ray() = delete; // no default constructor
-
-};
-
-inline Ray operator*(const glm::mat4& trans, const Ray& ray) {
-  return ray.transformed(trans);
-}
-
-struct CameraRay {
-  Ray r;
-  bool hasDifferentials = false;
-  Ray dx;
-  Ray dy;
-
-  CameraRay(Ray r) : r(r), hasDifferentials(false), dx{ {0,0,0},{0,0,0} }, dy{ {0,0,0},{0,0,0} } {}
-};
-
-
 // Shading Functions
 bool intersectScene(
   IntersectResult& out_result, 
@@ -103,7 +77,8 @@ void RenderRaytracer(
 
   // Lighting parameters
   const glm::vec3& ambient,
-  const std::list<Light*>& lights
+  const std::list<Light*>& lights,
+  Image* progressImage = nullptr
 );
 
 void RenderRaytracer_ST(

@@ -9,6 +9,7 @@ typedef float imageData;
 struct Image {
 	imageData* data;
 	size_t w, h;
+	std::string id;
 
 	Image(size_t width, size_t height) 
 		: data(nullptr), w(width), h(height)
@@ -17,7 +18,7 @@ struct Image {
 	}
 
 	Image(const Image& other) 
-		: data(nullptr), w(other.w), h(other.h)
+		: data(nullptr), w(other.w), h(other.h), id(other.id + ".d")
 	{
 		data = new imageData[w * h * 3];
 		memcpy(data, other.data, sizeof(imageData) * w * h * 3);

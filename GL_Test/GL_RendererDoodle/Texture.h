@@ -6,6 +6,34 @@
 #include "Image.h"
 
 
+struct id_code {
+  unsigned int id;
+  operator unsigned int() { return id; }
+
+  static unsigned int last_id;
+
+  id_code() {
+    id = last_id;
+    last_id++;
+  }
+
+  id_code(const id_code&& other) {
+    id = other.id;
+  }
+  id_code& operator=(const id_code&& other) {
+    id = other.id;
+  }
+
+  //todo: maybe disable copy constructor? (force manual duplicate call)
+  id_code(const id_code& other) {
+    id = id_code();
+  }
+  id_code& operator=(const id_code& other) {
+    id = id_code();
+  }
+
+};
+
 inline float fract(float f)
 {
   return f - (long)f;
@@ -16,6 +44,7 @@ class Texture {
   // num layers cannot be changed after creation
   unsigned int layers = 1;
 public:
+  id_code id;
 
   Texture(const Texture&) = default;
   Texture& operator=(const Texture&) = default;

@@ -63,6 +63,8 @@ private:
   glm::vec3 m_ks;
 
   double m_shininess;
+
+  friend struct GLR_PhongMaterial;
 };
 
 class TexturedPhongMaterial : public Material {
@@ -107,6 +109,8 @@ private:
   glm::vec3 m_ks;
 
   double m_shininess;
+
+  friend struct GLR_NormalTexturedPhongMaterial;
 };
 
 class PBRMaterial : public Material {
@@ -126,6 +130,8 @@ private:
   glm::vec3 m_kd;
   float m_metal;
   float m_roughness;
+
+  friend struct GLR_PBRMaterial;
 };
 
 class NormalTexturedPBRMaterial : public Material {
@@ -147,4 +153,6 @@ private:
   Texture m_normalMap;
   float m_metal;
   float m_roughness;
+
+  friend struct GLR_NormalTexturedPBRMaterial;
 };

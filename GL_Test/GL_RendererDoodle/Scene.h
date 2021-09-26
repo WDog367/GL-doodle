@@ -49,6 +49,7 @@ public:
 	void remove_child(SceneNode* child);
 
 	void rotate(char axis, float angle);
+	void pre_rotate(char axis, float angle);
 	void scale(const glm::vec3& amount);
 	void translate(const glm::vec3& amount);
 	};
@@ -106,3 +107,7 @@ public:
 
 	Light* m_light;
 };
+
+// Util functions
+
+

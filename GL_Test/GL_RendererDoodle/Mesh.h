@@ -12,6 +12,7 @@
 #include "Primitive.h"
 #include "RenderRaytracer.h"
 
+
 // Use this #define to selectively compile your code to render the
 // bounding boxes around your mesh objects. Uncomment this option
 // to turn it on.
@@ -158,6 +159,9 @@ public:
 
 	void generateBounds();
 	void generateNormals();
+
+
+	void generateUVs();
 	void generateTangents();
 
     friend std::ostream& operator<<(std::ostream& out, const Mesh& mesh);
