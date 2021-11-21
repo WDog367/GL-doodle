@@ -27,9 +27,7 @@ public:
     double attenuation = 1.0) = 0;
 
     virtual std::string getId() const = 0;
-    const std::list<std::pair<std::string, const Texture*>> &getImages() const { return m_imageResources; };
     
 protected:
   Material();
-  std::list<std::pair<std::string, const Texture*>> m_imageResources ;
 };

@@ -245,7 +245,6 @@ TexturedPhongMaterial::TexturedPhongMaterial(
 	, m_ks(ks)
 	, m_shininess(shininess)
 {
-	m_imageResources.emplace_back(textureName, &m_kd);
 }
 
 TexturedPhongMaterial::~TexturedPhongMaterial()
@@ -264,8 +263,6 @@ NormalTexturedPhongMaterial::NormalTexturedPhongMaterial(
 	, m_ks(ks)
 	, m_shininess(shininess)
 {
-	m_imageResources.emplace_back(textureName, &m_kd);
-	m_imageResources.emplace_back(normalMapName, &m_normalMap);
 }
 
 NormalTexturedPhongMaterial::~NormalTexturedPhongMaterial()
@@ -302,8 +299,6 @@ NormalTexturedPBRMaterial::NormalTexturedPBRMaterial(const std::string &textureN
   , m_metal(metal)
   , m_roughness(roughness)
 {
-	m_imageResources.emplace_back(textureName, &m_kd);
-	m_imageResources.emplace_back(normalMapName, &m_normalMap);
 }
 
 NormalTexturedPBRMaterial::~NormalTexturedPBRMaterial()

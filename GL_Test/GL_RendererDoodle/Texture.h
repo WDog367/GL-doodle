@@ -76,7 +76,6 @@ public:
 
         Image& upperLevel = images[(levels - 2) * layers + layer];
         Image& curLevel = images.back();
-        curLevel = Image(width, height);
 
         double wRatio = (double)upperLevel.width() / curLevel.width();
         double hRatio = (double)upperLevel.height() / curLevel.height();

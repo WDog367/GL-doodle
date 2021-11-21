@@ -146,7 +146,7 @@ struct GPURenderOptions {
 	GLR_Texture& addTexture(const Texture& tex) {
 		auto itr = textures.find(tex.id.id);
 		if (itr == textures.end()) {
-			itr = textures.emplace(tex.id.id, &GLR_Texture(&tex)).first;
+			itr = textures.emplace(tex.id.id, new GLR_Texture(&tex)).first;
 
 			// upload texture to GPU
 			// todo: layers
