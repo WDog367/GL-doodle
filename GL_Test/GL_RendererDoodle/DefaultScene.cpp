@@ -22,6 +22,69 @@ struct SceneInfo {
 	std::list<Light*> lights = {};
 };
 
+inline void render(SceneNode* root, std::string fname, size_t w, size_t h, glm::vec3 pos, glm::vec3 eye, glm::vec3 up, double fovy, glm::vec3 color, std::list<Light*> lights) {
+	Image screenshot(w, h);
+	renderToWindow(root, screenshot, pos, eye, up, fovy, color, lights);
+	screenshot.savePng(fname);
+}
+
+SceneNode* boxScene(struct SceneInfo& scene_info) {
+	SceneNode* scene = new SceneNode("root");
+
+	auto dirt = new NormalTexturedPhongMaterial("dirt.png", "dirt_n.png", { 0.1, 0.1, 0.1 }, 20);
+	
+	std::list<Light*> lights = { new Light({0, 0, 10 + 5}, {0.9, 0.9, 0.9}, {1, 0, 0}) };
+
+	auto s3 = new GeometryNode("s3", new Mesh("box_10.obj"));
+
+	scene->add_child(s3);
+	s3->setMaterial(dirt);
+
+	render(scene,
+		"box_obj_1.png", 512, 512,
+		{ 0, 0, 10 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+		{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_2.png", 512, 512,
+			{ 0, 0, 20 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_3.png", 512, 512,
+			{ 0, 0, 40 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_4.png", 512, 512,
+			{ 0, 0, 80 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_5.png", 512, 512,
+			{ 0, 0, 160 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_6.png", 512, 512,
+			{ 0, 0, 320 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_7.png", 512, 512,
+			{ 0, 0, 640 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+
+		render(scene,
+			"box_obj_8.png", 512, 512,
+			{ 0, 0, 1280 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45,
+			{ 0.4, 0.4, 0.4 }, lights);
+	
+		scene_info = SceneInfo{ { 0, 0, 10 + 5 }, { 0.00, 0.0, 0.0 }, { 0, 1, 0 }, 45, { 0.4, 0.4, 0.4 }, lights };
+
+		return scene;
+}
+
 
 SceneNode* simpleScene(struct SceneInfo &scene_info) {
   SceneNode* root = new SceneNode("root");
