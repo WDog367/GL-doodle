@@ -89,6 +89,135 @@ inline glm::vec2 sampleRate(const CameraRay& view, glm::vec3 p, glm::vec3 n, glm
 				std::max(std::abs(duv_x.y), std::abs(duv_y.y)));
 }
 
+glm::vec3 colours[] = {
+		glm::vec3(0, 0, 1),
+		glm::vec3(0, 1, 0),
+		glm::vec3(1, 0, 0),
+		glm::vec3(0, 1, 1),
+		glm::vec3(1, 1, 0),
+		glm::vec3(1, 0, 1),
+		glm::vec3(1, 1, 1),
+};
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
+// todo: doesn't match openGl image axes
+glm::dvec3& Texture::operator() (glm::vec3 d, unsigned int level) {
+	assert(layers == 6);
+
+	uint8_t a = 0;
+	for (uint8_t i = 1; i < 3; i++) {
+		a = (std::abs(d[a]) > std::abs(d[i])) ? a : i;
+	}
+
+	unsigned int layer = a * 2 + (d[a] > 0 ? 0 : 1);
+
+	d = d / std::abs(d[a]);
+	float u = d[(a + 1) % 3] * 0.5 + 0.5;
+	float v = d[(a + 2) % 3] * 0.5 + 0.5;
+
+	Image& image = images[level * layers + layer];
+	uint32_t x = u * (image.width());
+	uint32_t y = v * (image.height());
+
+	x = std::min(x, image.width() - 1);
+	y = std::min(y, image.height() - 1);
+
+	return (glm::dvec3&)image(x, y, 0);
+}
+
+glm::vec3 sampleTexture(const Texture& texture, const glm::vec2& uv, size_t layer = 0) {
+	glm::vec3 tex_color;
+	const Image& tex = texture.images[std::min(layer, texture.images.size() - 1)];
+
+	if (layer > 0) {
+		//		return  colours[(layer - 1) % ARRAY_SIZE(colours)];
+	}
+
+	glm::vec2 uv_whole;
+	glm::vec2 uv_part;
+
+	uv_part.x = modff(uv.x, &uv_whole.x);
+	uv_part.y = modff(uv.y, &uv_whole.y);
+
+	glm::ivec2 tex_coord = glm::vec2(tex.width(), tex.height()) * uv_part;
+	tex_coord.y = tex.height() - 1 - tex_coord.y;
+
+	tex_coord.x = tex_coord.x % tex.width();
+	tex_coord.y = tex_coord.y % tex.height();
+
+	tex_color.x = tex(tex_coord.x, tex_coord.y, 0);
+	tex_color.y = tex(tex_coord.x, tex_coord.y, 1);
+	tex_color.z = tex(tex_coord.x, tex_coord.y, 2);
+
+	return tex_color;
+}
+
+glm::vec3 shade(const CameraRay& view, IntersectResult* fragmentIntersection) {
+	return { 1, 0, 1 };
+}
+
+glm::vec3 ColorMaterialValue::shade(const CameraRay& view, IntersectResult* fragmentIntersection) {
+	return color;
+}
+
+glm::vec3 TextureMaterialValue::shade(const CameraRay& view, IntersectResult* fragmentIntersection) {
+	glm::vec3 normal = fragmentIntersection->normal;
+	// todo: should these be normalized? does it need to be an orthonormal basis, or should it be stretched if the UV space is stretched?
+	glm::vec3 tangent = glm::normalize(fragmentIntersection->tangent);
+	glm::vec3 bitangent = glm::normalize(fragmentIntersection->bitangent);
+
+	// TODO: some way to embed the screen-rate calculation outside of this sampling ... so it isn't repeated for multiple textures
+	//    -- maybe a shared screen-sable struct? similar to CameraRay's additional info
+	//    -- maybe normal map needs to be moved out into the geometry part instead of the material ... 
+	glm::vec2 sr = sampleRate(view, fragmentIntersection->position, normal, fragmentIntersection->tangent, fragmentIntersection->bitangent);
+
+	// sanity check assert 
+	// sampleRate * (m_kd.images[0].width() / (2^layer)) == 1
+
+	float du = glm::log2(sr.x * tex.images[0].width());
+	float dv = glm::log2(sr.y * tex.images[0].height());
+
+	size_t layer = std::max(0, (int)std::floor(std::min(du, dv)));
+
+	return sampleTexture(tex, fragmentIntersection->surface_uv, layer);
+}
+
+glm::vec3 TextureNormalMaterialValue::shade(const CameraRay& view, IntersectResult* fragmentIntersection) {
+	glm::vec3 normal = fragmentIntersection->normal;
+	// todo: should these be normalized? does it need to be an orthonormal basis, or should it be stretched if the UV space is stretched?
+	glm::vec3 tangent = glm::normalize(fragmentIntersection->tangent);
+	glm::vec3 bitangent = glm::normalize(fragmentIntersection->bitangent);
+
+	// TODO: some way to embed the screen-rate calculation outside of this sampling ... so it isn't repeated for multiple textures
+	//    -- maybe a shared screen-sable struct? similar to CameraRay's additional info
+	//    -- maybe normal map needs to be moved out into the geometry part instead of the material ... 
+	glm::vec2 sr = sampleRate(view, fragmentIntersection->position, normal, fragmentIntersection->tangent, fragmentIntersection->bitangent);
+
+	// sanity check assert 
+	// sampleRate * (m_kd.images[0].width() / (2^layer)) == 1
+
+	float du = glm::log2(sr.x * tex.images[0].width());
+	float dv = glm::log2(sr.y * tex.images[0].height());
+
+	size_t layer = std::max(0, (int)std::floor(std::min(du, dv)));
+
+	// sample texture
+	glm::vec3 tex_normal = sampleTexture(tex, fragmentIntersection->surface_uv, layer);
+
+	// decode normal vecetor from [0,1] to [-1,1] range
+	tex_normal = (tex_normal - 0.5f) * 2.f;
+
+	// calculate eye space normal with tangent basis
+	return (normal * tex_normal.z) + (tangent * tex_normal.x) + (bitangent * tex_normal.y);
+}
+
+glm::vec3 MeshNormalMaterialValue::shade(const CameraRay& view, IntersectResult* fragmentIntersection) {
+	return fragmentIntersection->normal;
+}
+
+/* ------------------------------------------------------------------------------------------------------------------------------- */
+
 inline float shadow(SceneNode *root, 
                 glm::vec3 pos, glm::vec3 dir,
                 float dist) {
@@ -224,59 +353,55 @@ glm::vec3 phongShading(const glm::vec3 &kd, const glm::vec3 &ks, double shinines
 	return color * float(attenuation);
 }
 
-PhongMaterial::PhongMaterial(
-	const glm::vec3& kd, const glm::vec3& ks, double shininess )
-	: m_kd(kd)
-	, m_ks(ks)
+PhongMaterial::PhongMaterial(const glm::vec3& kd, const glm::vec3& ks, double shininess)
+	: m_kd(new ColorMaterialValue(kd))
+	, m_ks(new ColorMaterialValue(ks))
+	, m_norm(new MeshNormalMaterialValue())
 	, m_shininess(shininess)
 {}
+
+PhongMaterial::PhongMaterial(const std::string& textureName, const std::string& normalMapName, const glm::vec3& ks, double shininess)
+	: m_kd(new TextureMaterialValue(Image::loadPng(searchForAsset(textureName))))
+	, m_norm(new TextureNormalMaterialValue(Image::loadPng(searchForAsset(normalMapName))))
+	, m_ks(new ColorMaterialValue(ks))
+	, m_shininess(shininess)
+{
+}
+
+
+PhongMaterial::PhongMaterial(
+	MaterialValue &kd,
+	MaterialValue& ks,
+	double shininess,
+	MaterialValue&normalMap)
+	: m_kd(&kd)
+	, m_ks(&ks)
+	, m_shininess(shininess)
+	, m_norm(&normalMap)
+{
+}
 
 PhongMaterial::~PhongMaterial()
 {}
 
 std::string PhongMaterial::getId() const {
-	static std::string id = "__phong_material";
-	return id;
-}
-
-TexturedPhongMaterial::TexturedPhongMaterial(
-	const std::string &textureName, const glm::vec3& ks, double shininess )
-	: m_kd(Image::loadPng(searchForAsset(textureName)))
-	, m_ks(ks)
-	, m_shininess(shininess)
-{
-}
-
-TexturedPhongMaterial::~TexturedPhongMaterial()
-{}
-
-std::string TexturedPhongMaterial::getId() const {
-	static std::string id = "__texturedPhong_material";
-	return id;
-}
-
-
-NormalTexturedPhongMaterial::NormalTexturedPhongMaterial(
-	const std::string &textureName, const std::string &normalMapName, const glm::vec3& ks, double shininess )
-	: m_kd(Image::loadPng(searchForAsset(textureName)))
-	, m_normalMap(Image::loadPng(searchForAsset(normalMapName)))
-	, m_ks(ks)
-	, m_shininess(shininess)
-{
-}
-
-NormalTexturedPhongMaterial::~NormalTexturedPhongMaterial()
-{}
-
-std::string NormalTexturedPhongMaterial::getId() const {
 	static std::string id = "__normalTexturedPhong_material";
 	return id;
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-PBRMaterial::PBRMaterial(const glm::vec3 &kd, float roughness, float metal) 
-  : m_kd(kd)
+PBRMaterial::PBRMaterial(const glm::vec3& albedo, float roughness, float metal)
+	: m_kd(new ColorMaterialValue(albedo))
+	, m_norm(new MeshNormalMaterialValue())
+	, m_metal(metal)
+	, m_roughness(roughness)
+{
+}
+
+PBRMaterial::PBRMaterial(const std::string &textureName, const std::string &normalMapName, float roughness, float metal) 
+	: m_kd(new TextureMaterialValue(Image::loadPng(searchForAsset(textureName))))
+	, m_norm(new TextureNormalMaterialValue(Image::loadPng(searchForAsset(normalMapName))))
   , m_metal(metal)
   , m_roughness(roughness)
 {
@@ -286,175 +411,31 @@ PBRMaterial::~PBRMaterial()
 {}
 
 std::string PBRMaterial::getId() const {
-	static std::string id = "__PBR_material";
-	return id;
-}
-
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-NormalTexturedPBRMaterial::NormalTexturedPBRMaterial(const std::string &textureName, const std::string &normalMapName, float roughness, float metal) 
-  : m_kd(Image::loadPng(searchForAsset(textureName)))
-  , m_normalMap(Image::loadPng(searchForAsset(normalMapName)))
-  , m_metal(metal)
-  , m_roughness(roughness)
-{
-}
-
-NormalTexturedPBRMaterial::~NormalTexturedPBRMaterial()
-{}
-
-std::string NormalTexturedPBRMaterial::getId() const {
 	static std::string id = "__normalTexturedPBR_material";
 	return id;
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
 glm::vec3 PhongMaterial::shade(
 	SceneNode* root, const glm::vec3 & ambient, const std::list<Light *> & lights,
 	const CameraRay &view, IntersectResult* fragmentIntersection,
 	double attenuation) {
 
-	return phongShading(m_kd, m_ks, m_shininess, fragmentIntersection->normal, root, ambient, lights, view, fragmentIntersection, attenuation);
+	glm::vec3 kd = m_kd->shade(view, fragmentIntersection);
+	glm::vec3 normal = m_norm->shade(view, fragmentIntersection);
+	glm::vec3 ks = m_ks->shade(view, fragmentIntersection);
+
+	return phongShading(kd, ks, m_shininess, normal, root, ambient, lights, view, fragmentIntersection, attenuation);
 }
-
-glm::vec3 colours[] = {
-		glm::vec3(0, 0, 1),
-		glm::vec3(0, 1, 0),
-		glm::vec3(1, 0, 0),
-		glm::vec3(0, 1, 1),
-		glm::vec3(1, 1, 0),
-		glm::vec3(1, 0, 1),
-		glm::vec3(1, 1, 1),
-};
-
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-
-// todo: doesn't match openGl image axes
-glm::dvec3& Texture::operator() (glm::vec3 d, unsigned int level) {
-		assert(layers == 6);
-
-		uint8_t a = 0;
-		for (uint8_t i = 1; i < 3; i++) {
-				a = (std::abs(d[a]) > std::abs(d[i])) ? a : i;
-		}
-
-		unsigned int layer = a * 2 + (d[a] > 0 ? 0 : 1);
-
-		d = d / std::abs(d[a]);
-		float u = d[(a + 1) % 3] * 0.5 + 0.5;
-		float v = d[(a + 2) % 3] * 0.5 + 0.5;
-
-		Image& image = images[level * layers + layer];
-		uint32_t x = u * (image.width());
-		uint32_t y = v * (image.height());
-
-		x = std::min(x, image.width() - 1);
-		y = std::min(y, image.height() - 1);
-
-		return (glm::dvec3&)image(x, y, 0);
-}
-
-glm::vec3 sampleTexture(const Texture &texture, const glm::vec2 &uv, size_t layer = 0) {
-	glm::vec3 tex_color;
-	const Image &tex = texture.images[std::min(layer, texture.images.size() - 1)];
-	
-	if (layer > 0) {
-	//		return  colours[(layer - 1) % ARRAY_SIZE(colours)];
-	}
-
-	glm::vec2 uv_whole;
-	glm::vec2 uv_part;
-
-	uv_part.x = modff(uv.x, &uv_whole.x);
-	uv_part.y = modff(uv.y, &uv_whole.y);
-	
-	glm::ivec2 tex_coord = glm::vec2(tex.width(), tex.height()) * uv_part;
-	tex_coord.y = tex.height() - 1 - tex_coord.y;
-
-	tex_coord.x = tex_coord.x % tex.width();
-	tex_coord.y = tex_coord.y % tex.height();
-
-	tex_color.x = tex(tex_coord.x, tex_coord.y, 0);
-	tex_color.y = tex(tex_coord.x, tex_coord.y, 1);
-	tex_color.z = tex(tex_coord.x, tex_coord.y, 2);
-
-	return tex_color;
-}
-
-glm::vec3 TexturedPhongMaterial::shade(
-	SceneNode* root, const glm::vec3 & ambient, const std::list<Light *> & lights,
-	const CameraRay &view, IntersectResult* fragmentIntersection,
-	double attenuation) {
-
-	glm::vec3 tex_color = sampleTexture(m_kd, fragmentIntersection->surface_uv);
-
-	return phongShading(tex_color, m_ks, m_shininess, fragmentIntersection->normal, root, ambient, lights, view, fragmentIntersection, attenuation);
-}
-
-glm::vec3 NormalTexturedPhongMaterial::shade(
-	SceneNode* root, const glm::vec3 & ambient, const std::list<Light *> & lights,
-	const CameraRay &view, IntersectResult* fragmentIntersection,
-	double attenuation) {
-
-	glm::vec3 normal = fragmentIntersection->normal;
-	// todo: should these be normalized? does it need to be an orthonormal basis, or should it be stretched if the UV space is stretched?
-	glm::vec3 tangent = glm::normalize(fragmentIntersection->tangent);
-	glm::vec3 bitangent = glm::normalize(fragmentIntersection->bitangent);
-
-	glm::vec2 sr = sampleRate(view, fragmentIntersection->position, normal, fragmentIntersection->tangent, fragmentIntersection->bitangent);
-
-	// sampleRate * (m_kd.images[0].width() / (2^layer)) == 1
-
-	float du = glm::log2(sr.x * m_kd.images[0].width());
-	float dv = glm::log2(sr.y * m_kd.images[0].height());
-
-	size_t layer = std::max(0, (int)std::floor(std::min(du, dv)));
-
-	glm::vec3 tex_color = sampleTexture(m_kd, fragmentIntersection->surface_uv, layer);
-	glm::vec3 tex_normal = sampleTexture(m_normalMap, fragmentIntersection->surface_uv, layer);
-
-	tex_normal = (tex_normal - 0.5f) * 2.f;
-
-	normal = normal*tex_normal.z + tangent*tex_normal.x + bitangent*tex_normal.y;
-
-	return phongShading(tex_color, m_ks, m_shininess, normal, root, ambient, lights, view, fragmentIntersection, attenuation);
-}
-
-
 
 glm::vec3 PBRMaterial::shade(
 	SceneNode* root, const glm::vec3 & ambient, const std::list<Light *> & lights,
 	const CameraRay &view, IntersectResult* fragmentIntersection,
 	double attenuation) {
+	glm::vec3 kd = m_kd->shade(view, fragmentIntersection);
+	glm::vec3 normal = m_norm->shade(view, fragmentIntersection);
 
-	return phongShading(m_kd, glm::mix(glm::vec3(1, 1, 1), m_kd, m_metal), (1 - m_roughness) * 128, fragmentIntersection->normal, root, ambient, lights, view, fragmentIntersection, attenuation);
-}
-
-glm::vec3 NormalTexturedPBRMaterial::shade(
-	SceneNode* root, const glm::vec3 & ambient, const std::list<Light *> & lights,
-	const CameraRay &view, IntersectResult* fragmentIntersection,
-	double attenuation) {
-
-	glm::vec3 normal = fragmentIntersection->normal;
-	// todo: should these be normalized?
-	glm::vec3 tangent = glm::normalize(fragmentIntersection->tangent);
-	glm::vec3 bitangent = glm::normalize(fragmentIntersection->bitangent);
-
-	glm::vec2 sr = sampleRate(view, fragmentIntersection->position, normal, fragmentIntersection->tangent, fragmentIntersection->bitangent);
-
-	// sampleRate * (m_kd.images[0].width() / (2^layer)) == 1
-	size_t layer = std::max(0, (int)std::floor(std::min(glm::log2(sr.x * m_kd.images[0].width()), glm::log2(sr.y * m_kd.images[0].height()))));
-
-	glm::vec3 tex_color = sampleTexture(m_kd, fragmentIntersection->surface_uv, layer);
-	glm::vec3 tex_normal = sampleTexture(m_normalMap, fragmentIntersection->surface_uv, layer);
-
-	tex_normal = (tex_normal - 0.5f) * 2.f;
-
-	// getLocalVectors(tangent, bitangent, normal);
-
-	normal = normal*tex_normal.z + tangent*tex_normal.x + bitangent*tex_normal.y;
-
-	return phongShading(tex_color, glm::mix(glm::vec3(1, 1, 1), tex_color, m_metal), (1 - m_roughness) * 128, normal, root, ambient, lights, view, fragmentIntersection, attenuation);
+	return phongShading(kd, glm::mix(glm::vec3(1, 1, 1), kd, m_metal), (1 - m_roughness) * 128, normal, root, ambient, lights, view, fragmentIntersection, attenuation);
 }

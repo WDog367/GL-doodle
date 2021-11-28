@@ -44,7 +44,7 @@ void getNameAndExtension(std::string& out_dir, std::string& out_name, std::strin
 }
 
 // adds preprocessor defines to shader, so ubershader can be used
-std::string preprocessShader(const std::string& fname, const std::string& outName, const std::map<std::string, std::string>& defines) {
+std::string preprocessShader(const std::string& fname, const std::string& outName, const std::map<std::string, std::string>& defines, const std::string &additions) {
 	std::string fpath = searchForAsset(fname);
 
 	if (fpath == "") {
@@ -84,6 +84,16 @@ std::string preprocessShader(const std::string& fname, const std::string& outNam
 
 			for (const std::pair<std::string, std::string>& pair : defines) {
 				shader_out << "#define " << pair.first << " " << pair.second << "\n";
+			}
+
+		}
+		else if (token == "#define") {
+			ls >> token;
+			if (token == "ADDITIONS") {
+				shader_out << additions;
+			}
+			else {
+				shader_out << line << "\n";
 			}
 		}
 		else {

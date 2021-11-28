@@ -171,9 +171,30 @@ struct GPURenderOptions {
 		return usedSlot;
 	}
 
+	bool hasShader(
+		const std::map<std::string, std::string>& defines,
+		const std::string& vs, const std::string& fs,
+		const std::string& additions = "",
+		const std::string& gs = "") {
+
+		std::string shaderId = generateShaderProgramId({ &defines, &shaderDefines }, vs, fs, gs);
+
+		auto itr = shaderPrograms.find(shaderId);
+
+		// if shader hasn't been loaded, load it
+		if (itr == shaderPrograms.end()) {
+			return false;
+		}
+		else {
+			return true;
+		}
+
+	}
+
 	GLR_ShaderProgram& addShader(
 		const std::map<std::string, std::string>& defines,
 		const std::string& vs, const std::string& fs,
+		const std::string& additions = "",
 		const std::string& gs = "") {
 
 		std::string shaderId = generateShaderProgramId({ &defines, &shaderDefines }, vs, fs, gs);
@@ -185,14 +206,14 @@ struct GPURenderOptions {
 			if (gs != "") {
 				auto res = shaderPrograms.emplace(shaderId, new GLR_ShaderProgram(
 					preprocessShader(vs, shaderId, defines),
-					preprocessShader(fs, shaderId, defines),
+					preprocessShader(fs, shaderId, defines, additions),
 					preprocessShader(gs, shaderId, defines)));
 				itr = res.first;
 			}
 			else {
 				auto res = shaderPrograms.emplace(shaderId, new GLR_ShaderProgram(
 					preprocessShader(vs, shaderId, defines),
-					preprocessShader(fs, shaderId, defines)));
+					preprocessShader(fs, shaderId, defines, additions)));
 				itr = res.first;
 			}
 		}
@@ -443,101 +464,226 @@ struct GPURenderOptions {
 	}
 };
 
+static std::string makeFuncName(const std::string name) {
+	std::string funcname = name;
+	funcname[0] = toupper(funcname[0]);
+	funcname = "get" + funcname;
+	return funcname;
+}
+
+std::string removeSpaces(std::string input)
+{
+	input.erase(std::remove(input.begin(), input.end(), ' '), input.end());
+	return input;
+}
+
+template <typename T>
+struct GLR_T_MaterialValue : public GLR_MaterialValue {
+	MaterialValue* m_src;
+
+	inline T* mat() const { return static_cast<T*>(m_src); }
+	virtual std::string id() const override { return removeSpaces(typeid(T).name()); }
+};
+
+struct GLR_UnassignedMaterialValue : public GLR_T_MaterialValue<UnassignedMaterialValue> {
+	std::string m_name;
+	GLR_UnassignedMaterialValue(UnassignedMaterialValue* mat, const std::string& name) : m_name(name) { m_src = mat; }
+	virtual std::string getShaderCode(struct GPURenderOptions& options) const override {
+		std::string funcname = makeFuncName(m_name);
+		return
+			"vec3 " + funcname + "() {\n" +
+			"    return vec3(1.0, 0.0, 1.0);\n" +
+			"}\n"
+			;
+	}
+
+	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override
+	{
+	}
+};
+
+struct GLR_ColorMaterialValue : public GLR_T_MaterialValue<ColorMaterialValue> {
+	std::string m_name;
+	GLR_ColorMaterialValue(ColorMaterialValue* mat, const std::string& name) : m_name(name) { m_src = mat; }
+	virtual std::string getShaderCode(struct GPURenderOptions& options) const override {
+		std::string funcname = makeFuncName(m_name);
+		return
+			"uniform vec3 " + m_name + ";\n" +
+			"\n"
+			"vec3 " + funcname + "() {\n" +
+			"    return " + m_name + ";\n" +
+			"}\n"
+			;
+	}
+
+	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override
+	{
+		GLint location;
+		location = shader.getUniformLocation(m_name);
+		glUniform3fv(location, 1, glm::value_ptr(mat()->color));
+	}
+
+};
+
+struct GLR_TextureMaterialValue : public GLR_T_MaterialValue<TextureMaterialValue> {
+	std::string m_name;
+	GLR_TextureMaterialValue(TextureMaterialValue* mat, const std::string& name) : m_name(name) { m_src = mat; }
+
+	virtual std::string getShaderCode(struct GPURenderOptions& options) const override {
+		std::string funcname = makeFuncName(m_name);
+		return
+			"uniform sampler2D " + m_name + ";\n" +
+			"\n"
+			"vec3 " + funcname + "() {\n" +
+			"    return texture(" + m_name + ", fs_in.uv).rgb;\n" +
+			"}\n"
+			;
+	}
+
+	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override
+	{
+		GLint location;
+		location = shader.getUniformLocation(m_name);
+		GLR_Texture& kd_tex = options.addTexture(mat()->tex);
+		glUniform1i(location, options.bindTexture(kd_tex));
+	}
+};
+
+struct GLR_TextureNormalMaterialValue : public GLR_T_MaterialValue<TextureNormalMaterialValue> {
+	std::string m_name;
+	GLR_TextureNormalMaterialValue(TextureNormalMaterialValue* mat, const std::string& name) : m_name(name) { m_src = mat; }
+
+	virtual std::string getShaderCode(struct GPURenderOptions& options) const override {
+		std::string funcname = makeFuncName(m_name);
+		return
+			"uniform sampler2D " + m_name + ";\n" +
+			"\n"
+			"vec3 " + funcname + "() {\n" +
+			"    vec3 tex_normal_ = texture(" + m_name + ", fs_in.uv).rgb * 2 - 1;\n" +
+			"    vec3 normal_ = normalize(fs_in.normal_ES);\n" +
+			"    vec3 tangent_ = fs_in.tangent_ES;\n" +
+			"    vec3 bitangent_ = fs_in.bitangent_ES;\n" +
+			"    return normalize(normal_*tex_normal_.z + tangent_*tex_normal_.x + bitangent_*tex_normal_.y);\n" +
+			"}\n"
+			;
+	}
+
+	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override
+	{
+		GLint location;
+		location = shader.getUniformLocation(m_name);
+		GLR_Texture& kd_tex = options.addTexture(mat()->tex);
+		glUniform1i(location, options.bindTexture(kd_tex));
+	}
+};
+
+struct GLR_MeshNormalMaterialValue : public GLR_T_MaterialValue<MeshNormalMaterialValue> {
+	std::string m_name;
+	GLR_MeshNormalMaterialValue(MeshNormalMaterialValue* mat, const std::string& name) : m_name(name) { m_src = mat; }
+	virtual std::string getShaderCode(struct GPURenderOptions& options) const override {
+		std::string funcname = makeFuncName(m_name);
+		return
+			"uniform vec3 " + m_name + ";\n" +
+			"\n"
+			"vec3 " + funcname + "() {\n" +
+			"    return normalize(fs_in.normal_ES);\n" +
+			"}\n"
+			;
+	}
+
+	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override
+	{
+	}
+
+};
+
+GLR_MaterialValue* GLR_makeMaterialValue(MaterialValue& mat, const std::string &name) {
+	if (dynamic_cast<TextureMaterialValue*>(&mat)) {
+		return new GLR_TextureMaterialValue{ (TextureMaterialValue*)&mat, name };
+	}
+	else if (dynamic_cast<ColorMaterialValue*>(&mat)) {
+		return new GLR_ColorMaterialValue{ (ColorMaterialValue*)&mat, name };
+	}
+	else if (dynamic_cast<TextureNormalMaterialValue*>(&mat)) {
+		return new GLR_TextureNormalMaterialValue{ (TextureNormalMaterialValue*)&mat, name };
+	}
+	else if (dynamic_cast<MeshNormalMaterialValue*>(&mat)) {
+		return new GLR_MeshNormalMaterialValue{ (MeshNormalMaterialValue*)&mat, name };
+	}
+	else {
+		std::cerr << "unimplemented material type for: " << name << "\n";
+		return new GLR_UnassignedMaterialValue{ (UnassignedMaterialValue*)&mat, name };
+	}
+}
+
 template <typename T>
 struct GLR_T_Material : public GLR_Material {
 public:
 	inline T* mat() const { return static_cast<T*>(m_src); }
+	inline std::string id() const { return typeid(T).name(); }
 };
-
 
 #include "PhongMaterial.h"
 
 struct GLR_PhongMaterial : public GLR_T_Material<PhongMaterial> {
-	GLR_PhongMaterial(PhongMaterial* mat) { m_src = mat; }
-	virtual GLR_ShaderProgram& reserveShader(GPURenderOptions& options) const override;
-	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override;
-};
-
-struct GLR_NormalTexturedPhongMaterial : public GLR_T_Material<NormalTexturedPhongMaterial> {
-	GLR_NormalTexturedPhongMaterial(NormalTexturedPhongMaterial* mat) { m_src = mat; }
+	std::vector<GLR_MaterialValue*> m_values;
+	GLR_PhongMaterial(PhongMaterial* mat) { 
+		m_src = mat; 
+		m_values.push_back(GLR_makeMaterialValue(*mat->m_kd, "kd"));
+		m_values.push_back(GLR_makeMaterialValue(*mat->m_ks, "ks"));
+		m_values.push_back(GLR_makeMaterialValue(*mat->m_norm, "normal"));
+	}
 	virtual GLR_ShaderProgram& reserveShader(GPURenderOptions& options) const override;
 	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override;
 };
 
 struct GLR_PBRMaterial : public GLR_T_Material<PBRMaterial> {
-	GLR_PBRMaterial(PBRMaterial* mat) { m_src = mat; }
-	virtual GLR_ShaderProgram& reserveShader(GPURenderOptions& options) const override;
-	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override;
-};
-
-struct GLR_NormalTexturedPBRMaterial : public GLR_T_Material<NormalTexturedPBRMaterial> {
-	GLR_NormalTexturedPBRMaterial(NormalTexturedPBRMaterial* mat) { m_src = mat; }
+	std::vector<GLR_MaterialValue*> m_values;
+	GLR_PBRMaterial(PBRMaterial* mat) { 
+		m_src = mat;
+		m_values.push_back(GLR_makeMaterialValue(*mat->m_kd, "kd"));
+		m_values.push_back(GLR_makeMaterialValue(*mat->m_norm, "normal"));
+	}
 	virtual GLR_ShaderProgram& reserveShader(GPURenderOptions& options) const override;
 	virtual void uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const override;
 };
 
 
 GLR_Material* GLR_makeMaterial(Material& mat) {
-	if (dynamic_cast<PhongMaterial*>(&mat)) {
+  if (dynamic_cast<PhongMaterial*>(&mat)) {
 		return new GLR_PhongMaterial{ (PhongMaterial*)&mat };
-	}
-	else if (dynamic_cast<NormalTexturedPhongMaterial*>(&mat)) {
-		return new GLR_NormalTexturedPhongMaterial{ (NormalTexturedPhongMaterial*)&mat };
 	}
 	else if (dynamic_cast<PBRMaterial*>(&mat)) {
 		return new GLR_PBRMaterial{ (PBRMaterial*)&mat };
 	}
-	else if (dynamic_cast<NormalTexturedPBRMaterial*>(&mat)) {
-		return new GLR_NormalTexturedPBRMaterial{ (NormalTexturedPBRMaterial*)&mat };
-	}
 }
 
 GLR_ShaderProgram& GLR_PhongMaterial::reserveShader(GPURenderOptions& options) const {
-	std::string shaderId = "__phong_material";
-	std::map<std::string, std::string> defines = {};
-	return options.addShader(defines, "PhongUberShader.vs", "PhongUberShader.fs");
+	std::map<std::string, std::string> defines = { };
+	for (auto& mat : m_values) {
+		defines.emplace(mat->id(), "");
+	}
+
+	//TODO: hack here, improve system for tagging + adding shaders
+	if (!options.hasShader(defines, "PhongBaseShader.vs", "PhongBaseShader.fs")) {
+		std::string additions = "";
+		for (auto& mat : m_values) {
+			additions += mat->getShaderCode(options);
+		}
+		return options.addShader(defines, "PhongBaseShader.vs", "PhongBaseShader.fs", additions);
+	}
+	else {
+		return options.addShader(defines, "PhongBaseShader.vs", "PhongBaseShader.fs");
+	}
 }
 
 void GLR_PhongMaterial::uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const
 {
-	GLint location;
-	location = shader.getUniformLocation("material.kd");
-	glUniform3fv(location, 1, glm::value_ptr(mat()->m_kd));
-	// //TODO: CHECK FOR ERRORS
+	for (auto& mat : m_values) {
+		mat->uploadUniformsToGPU(options, shader);
+	}
 
-	location = shader.getUniformLocation("material.ks");
-	glUniform3fv(location, 1, glm::value_ptr(mat()->m_ks));
-	// //TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("material.shininess");
-	glUniform1f(location, mat()->m_shininess);
-	// //TODO: CHECK FOR ERRORS
-};
-
-GLR_ShaderProgram& GLR_NormalTexturedPhongMaterial::reserveShader(GPURenderOptions& options) const {
-	std::string shaderId = "__texturedPhong_material";
-	std::map<std::string, std::string> defines = { {"NORMAL_MAPPING", ""}, {"KD_TEXTURE", ""} };
-	return options.addShader(defines, "PhongUberShader.vs", "PhongUberShader.fs");
-}
-
-void GLR_NormalTexturedPhongMaterial::uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const
-{
-	GLint location;
-	location = shader.getUniformLocation("material.kd");
-	GLR_Texture& kd_tex = options.addTexture(mat()->m_kd);
-	glUniform1i(location, options.bindTexture(kd_tex));
-	//TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("normal_map");
-	GLR_Texture& normalMap = options.addTexture(mat()->m_normalMap);
-	glUniform1i(location, options.bindTexture(normalMap));
-	//TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("material.ks");
-	glUniform3fv(location, 1, glm::value_ptr(mat()->m_ks));
-	//TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("material.shininess");
+	GLint location = shader.getUniformLocation("material.shininess");
 	glUniform1f(location, mat()->m_shininess);
 	//TODO: CHECK FOR ERRORS
 };
@@ -545,47 +691,31 @@ void GLR_NormalTexturedPhongMaterial::uploadUniformsToGPU(GPURenderOptions& opti
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 GLR_ShaderProgram& GLR_PBRMaterial::reserveShader(GPURenderOptions& options) const {
-	std::string shaderId = "__PBR_material";
-	std::map<std::string, std::string> defines = { {"PBR_SHADING", ""} };
-	return options.addShader(defines, "PhongUberShader.vs", "PhongUberShader.fs");
+	std::map<std::string, std::string> defines = { };
+	for (auto& mat : m_values) {
+		defines.emplace(mat->id(), "");
+	}
+
+	//TODO: hack here, improve system for tagging + adding shaders
+	if (!options.hasShader(defines, "PBRBaseShader.vs", "PBRBaseShader.fs")) {
+		std::string additions = "";
+		for (auto& mat : m_values) {
+			additions += mat->getShaderCode(options);
+		}
+		return options.addShader(defines, "PBRBaseShader.vs", "PBRBaseShader.fs", additions);
+	}
+	else {
+		return options.addShader(defines, "PBRBaseShader.vs", "PBRBaseShader.fs");
+	}
 }
 
 void GLR_PBRMaterial::uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const
 {
+	for (auto& mat : m_values) {
+		mat->uploadUniformsToGPU(options, shader);
+	}
+
 	GLint location;
-	location = shader.getUniformLocation("material.kd");
-	glUniform3fv(location, 1, glm::value_ptr(mat()->m_kd));
-	//TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("material.metal");
-	glUniform1f(location, mat()->m_metal);
-	//TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("material.roughness");
-	glUniform1f(location, mat()->m_roughness);
-	//TODO: CHECK FOR ERRORS
-};
-
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-GLR_ShaderProgram& GLR_NormalTexturedPBRMaterial::reserveShader(GPURenderOptions& options) const {
-	std::string shaderId = "__normalTexturedPBR_material";
-	std::map<std::string, std::string> defines = { {"PBR_SHADING", ""}, {"NORMAL_MAPPING", ""}, {"KD_TEXTURE", ""} };
-	return options.addShader(defines, "PhongUberShader.vs", "PhongUberShader.fs");
-}
-
-void GLR_NormalTexturedPBRMaterial::uploadUniformsToGPU(GPURenderOptions& options, GLR_ShaderProgram& shader) const
-{
-	GLint location;
-	location = shader.getUniformLocation("material.kd");
-	GLR_Texture& kd_tex = options.addTexture(mat()->m_kd);
-	glUniform1i(location, options.bindTexture(kd_tex));
-	//TODO: CHECK FOR ERRORS
-
-	location = shader.getUniformLocation("normal_map");
-	GLR_Texture& normalMap = options.addTexture(mat()->m_normalMap);
-	glUniform1i(location, options.bindTexture(normalMap));
-	//TODO: CHECK FOR ERRORS
 
 	location = shader.getUniformLocation("material.metal");
 	glUniform1f(location, mat()->m_metal);

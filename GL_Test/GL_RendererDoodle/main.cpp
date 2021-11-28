@@ -586,6 +586,7 @@ struct SceneInfo {
 
 SceneNode* simpleScene(struct SceneInfo& view_pos);
 SceneNode* bigCoatScene(struct SceneInfo& view_pos);
+SceneNode* boxScene(struct SceneInfo& scene_info);
 
 #define defaultScene bigCoatScene
 

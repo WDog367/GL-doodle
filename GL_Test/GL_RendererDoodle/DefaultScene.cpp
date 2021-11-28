@@ -31,14 +31,24 @@ inline void render(SceneNode* root, std::string fname, size_t w, size_t h, glm::
 SceneNode* boxScene(struct SceneInfo& scene_info) {
 	SceneNode* scene = new SceneNode("root");
 
-	auto dirt = new NormalTexturedPhongMaterial("dirt.png", "dirt_n.png", { 0.1, 0.1, 0.1 }, 20);
+	auto dirt = new PhongMaterial("dirt.png", "dirt_n.png", { 0.1, 0.1, 0.1 }, 20);
+
+	auto dirt_pbr = new PBRMaterial("dirt.png", "dirt_n.png", 0.9, 0.0);
 	
 	std::list<Light*> lights = { new Light({0, 0, 10 + 5}, {0.9, 0.9, 0.9}, {1, 0, 0}) };
 
 	auto s3 = new GeometryNode("s3", new Mesh("box_10.obj"));
+	//s3->scale({ 5, 5, 5 });
+
+	auto s4 = new GeometryNode("s4", new Mesh("box_10.obj"));
+	//s4->scale({ 5, 5, 5 });
 
 	scene->add_child(s3);
 	s3->setMaterial(dirt);
+
+	scene->add_child(s4);
+	s4->setMaterial(dirt_pbr);
+	s4->translate({ 10, 0, 0 });
 
 	render(scene,
 		"box_obj_1.png", 512, 512,

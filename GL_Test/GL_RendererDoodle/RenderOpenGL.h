@@ -59,6 +59,14 @@ struct GLR_ShaderProgram {
 
 #include "Material.h"
 
+struct GLR_MaterialValue {
+	MaterialValue* m_src;
+
+	virtual std::string id() const = 0;
+	virtual std::string getShaderCode(struct GPURenderOptions& options) const = 0;
+	virtual void uploadUniformsToGPU(struct GPURenderOptions& options, GLR_ShaderProgram& shader) const = 0;
+};
+
 // Material separate from shader ...
 //	binds shader with textures, etc.
 struct GLR_Material {
