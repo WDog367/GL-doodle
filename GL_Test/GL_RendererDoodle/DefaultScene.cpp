@@ -142,9 +142,10 @@ SceneNode* simpleScene(struct SceneInfo &scene_info) {
   root->add_child(white_light);
   root->add_child(magenta_light);
 
-  Image screenshot(1024, 1024);
-  renderToWindow(root, screenshot, { 0, 0, 800 }, { 0, 0, -1 }, { 0, 1, 0 }, 50, { 0.3, 0.3, 0.3 }, {});
-  // screenshot.savePng("nonhier.png");
+	render(root, "nonhier.png", 1024, 1024,
+		{ 0, 0, 800 }, { 0, 0, -1 }, { 0, 1, 0 }, 50, 
+		{ 0.3, 0.3, 0.3 }, {});
+
 	scene_info = SceneInfo{ { 0, 0, 800 }, { 0, 0, -1 }, { 0, 1, 0 }, 50, { 0.3, 0.3, 0.3 } };
 
   return root;
@@ -878,12 +879,9 @@ SceneNode* bigCoatScene(struct SceneInfo& scene_info) {
 
 	auto world_lights = { l1, l2 };
 
-	// gr.render(scene, "bigCoat.png", 128, 128, 
-	//	  {0, 18, 5}, {0, 13, -35}, {0, 1, 0}, 50,
-	//      {0.4, 0.4, 0.4}, {l2})
-	Image screenshot(128, 128);
-	renderToWindow(scene, screenshot, { 0, 18, 5 }, { 0, 13, -35 }, { 0, 1, 0 }, 50, { 0.4, 0.4, 0.4 }, { l2 });
-	screenshot.savePng("bigCoat.png");
+	render(scene, "bigCoat.png", 128, 128,
+		{ 0, 18, 5 }, { 0, 13, -35 }, { 0, 1, 0 }, 50, 
+		{ 0.4, 0.4, 0.4 }, { l2 });
 
 	scene_info = SceneInfo{ { 0, 18, 5 }, { 0, 13, -35 }, { 0, 1, 0 }, 50, { 0.4, 0.4, 0.4 }, {l2} };
 

@@ -52,6 +52,19 @@ struct GLR_MeshData {
 struct GLR_ShaderProgram {
 	GLuint m_gl_id;
 
+	GLint locPerspective = -1;
+	GLint locModelView = -1;
+	GLint locInverseView = -1;
+	GLint locNormalMatrix = -1;
+	struct {
+		GLint locPosition = -1;
+		GLint locColor = -1;
+		GLint locAttenuation = -1;
+	} lights[50];
+	GLint locActiveLights = -1;
+	GLint locAmbientIntensity = -1;
+	GLint locEnvironmentMap = -1;
+
 	GLint getUniformLocation(const std::string& name);
 
 	GLR_ShaderProgram(const std::string& vs, const std::string& fs, const std::string& gs = "");

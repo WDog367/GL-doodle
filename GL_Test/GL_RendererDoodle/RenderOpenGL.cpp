@@ -17,6 +17,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <unordered_map>
 
 bool getGLErrors() {
 	GLenum ecode = GL_NO_ERROR;
@@ -136,12 +137,12 @@ struct GPURenderOptions {
 	bool iblRealtime = false;
 
 
-	std::map<unsigned int, struct GLR_Texture*> textures = {};
-	std::map<unsigned int, struct GLR_Material*> materials = {};
-	std::map<std::string, GLR_MeshData*> meshData = {};
-	std::map<std::string, GLR_Mesh*> meshes = {};
+	std::unordered_map<unsigned int, struct GLR_Texture*> textures = {};
+	std::unordered_map<unsigned int, struct GLR_Material*> materials = {};
+	std::unordered_map<std::string, GLR_MeshData*> meshData = {};
+	std::unordered_map<std::string, GLR_Mesh*> meshes = {};
 	std::map<std::string, std::string> shaderDefines = {};
-	std::map<std::string, struct GLR_ShaderProgram*> shaderPrograms = {};
+	std::unordered_map<std::string, struct GLR_ShaderProgram*> shaderPrograms = {};
 
 	GLR_Texture& addTexture(const Texture& tex) {
 		auto itr = textures.find(tex.id.id);
@@ -216,6 +217,25 @@ struct GPURenderOptions {
 					preprocessShader(fs, shaderId, defines, additions)));
 				itr = res.first;
 			}
+
+			// assign uniform locations
+			GLR_ShaderProgram& shader = *itr->second;
+			shader.locPerspective = shader.getUniformLocation("Perspective");
+			shader.locModelView = shader.getUniformLocation("ModelView");
+			shader.locInverseView = shader.getUniformLocation("InverseView");
+			shader.locNormalMatrix = shader.getUniformLocation("NormalMatrix");
+			int i = 0;
+			for (i = 0; i < 50; i++) {
+				std::string lightidx = "light[" + std::to_string(i) + "]";
+				shader.lights[i].locPosition = shader.getUniformLocation((lightidx + ".position").c_str());
+				shader.lights[i].locColor = shader.getUniformLocation((lightidx + ".colour").c_str());
+				shader.lights[i].locAttenuation = shader.getUniformLocation((lightidx + ".attenuation").c_str());
+				i++;
+			}
+			shader.locActiveLights = shader.getUniformLocation("activeLights");
+			shader.locAmbientIntensity = shader.getUniformLocation("ambientIntensity");
+			shader.locEnvironmentMap = shader.getUniformLocation("environment_map");
+
 		}
 
 		return *itr->second;
@@ -756,48 +776,46 @@ static void GLR_updateGlobalUniforms(
 	glUseProgram(shader.m_gl_id);
 	GLint location;
 
-	location = shader.getUniformLocation("Perspective");
+	location = shader.locPerspective;
 	glm::mat4 projection = glm::perspective(glm::radians(global_fov), 1.f, 0.1f, 2000.f);
 	glUniformMatrix4fv(location, 1, GL_FALSE, value_ptr(projection));
 
-	location = shader.getUniformLocation("ModelView");
+	location = shader.locModelView;
 	glm::mat4 modelView = viewMatrix * modelMatrix;
 	glUniformMatrix4fv(location, 1, GL_FALSE, value_ptr(modelView));
 
-	location = shader.getUniformLocation("InverseView");
+	location = shader.locInverseView;
 	glm::mat3 inverseView = glm::inverse(glm::mat3(viewMatrix));
 	glUniformMatrix3fv(location, 1, GL_FALSE, value_ptr(inverseView));
 
-	location = shader.getUniformLocation("NormalMatrix");
+	location = shader.locNormalMatrix;
 	glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(modelView)));
 	glUniformMatrix3fv(location, 1, GL_FALSE, value_ptr(normalMatrix));
 
 	int i = 0;
+#if 1 // todo: CPU bottleneck here: should be updating shared info once per frame for each shader
 	for (auto light : *current_lights) {
-		// todo: dont't construct strings
-		// todo: use UBOs
 		if (i >= 50) {
 			break;
 		}
 
-		std::string lightidx = "light[" + std::to_string(i) + "]";
-		location = shader.getUniformLocation((lightidx + ".position").c_str());
+		location = shader.lights[i].locPosition;
 		glUniform3fv(location, 1, value_ptr(glm::vec3(viewMatrix * glm::vec4(light->position, 1.0))));
 
-		location = shader.getUniformLocation((lightidx + ".colour").c_str());
+		location = shader.lights[i].locColor;
 		glUniform3fv(location, 1, value_ptr(light->colour));
 
-		location = shader.getUniformLocation((lightidx + ".attenuation").c_str());
+		location = shader.lights[i].locAttenuation;
 		glUniform1fv(location, 3, light->falloff);
 		// todo: check for errors
 
 		i++;
 	}
-
-	location = shader.getUniformLocation("activeLights");
+#endif
+	location = shader.locActiveLights;
 	glUniform1i(location, i);
 
-	location = shader.getUniformLocation("ambientIntensity");
+	location = shader.locAmbientIntensity;
 	glUniform3fv(location, 1, glm::value_ptr(ambientIntensity));
 
 	//todo: replace with call to options.bindTexture()
@@ -806,7 +824,7 @@ static void GLR_updateGlobalUniforms(
 	glBindTexture(GL_TEXTURE_CUBE_MAP, s_cubeMapId);
 	glr_render.texSlot++;
 
-	location = shader.getUniformLocation("environment_map");
+	location = shader.locEnvironmentMap;
 	glUniform1i(location, usedSlot);
 
 }
